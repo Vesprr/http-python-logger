@@ -9,7 +9,12 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-no_warn_duplicate_lib
 
 # CHANGE: IMPORT PACKAGES
 find_package(fmt CONFIG REQUIRED)
+find_package(Crow CONFIG REQUIRED)
+# set(CURL_XCFRAMEWORK "${CMAKE_SOURCE_DIR}/external/curl.xcframework/macos-arm64_x86_64/curl.framework")
+# include_directories("${CURL_XCFRAMEWORK}/Headers")
+include_directories("${CMAKE_SOURCE_DIR}/external/included")
 # END CHANGE
+
 
 # get all files in src directory
 file(GLOB_RECURSE FILES_FOLDERS
@@ -64,5 +69,26 @@ target_include_directories(
 target_link_libraries(
     main PRIVATE
     fmt::fmt
+    Crow::Crow asio::asio
+    # # curl framework
+    # "-F${CURL_XCFRAMEWORK}/.."
+    # "-framework curl"
+    # # macOS system frameworks needed by curl
+    # "-framework CoreFoundation"
+    # "-framework SystemConfiguration"
+    # "-lz" # zlib
+    # # LDAP (OpenLDAP is system-installed)
+    # "-lldap"
+    # "-llber"
 )
 # END CHANGE
+
+# Install binary
+install(TARGETS main
+    RUNTIME DESTINATION bin
+)
+
+# Install assets folder as 'templates' next to binary
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets/
+    DESTINATION bin/
+)

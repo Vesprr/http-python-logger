@@ -37,9 +37,13 @@ cmake -B build -S . \
 echo -e "${YELLOW}Compiling using CMake ... ${RESET}"
 cmake --build build --config Release
 
+echo -e "${YELLOW}Installing binary and templates ...${RESET}"
+cmake --install build --prefix ./out
+
 start=$(date +%s.%N)
-echo -e "${PURPLE}Executable Started ... ${RESET}"
-build/main
+echo -e "${PURPLE}Executable Started ...${RESET}"
+cd out/bin
+./main
 end=$(date +%s.%N)
 
 elapsed=$(awk -v e="$end" -v s="$start" 'BEGIN { printf "%.9f", e - s }')

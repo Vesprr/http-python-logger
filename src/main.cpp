@@ -1,10 +1,23 @@
-#include <fmt/core.h>
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include "Server.hpp"
+#include "Logger.hpp"
 
-int main() {
-    fmt::print("Hello from your C++ template!\n");
+int main()
+{
+    Server server(5000);
+    Logger loggerA(server, 1, "LoggerA");
+    Logger loggerB(server, 2, "LoggerB");
 
-    int answer = 42;
-    fmt::print("The answer is: {}\n", answer);
+    server.Start();
 
-    return 0;
+    // for (unsigned int i = 0; true; i++)
+    // {
+    //     loggerA.log("Message A " + std::to_string(i));
+    //     loggerB.log("Message B " + std::to_string(i));
+
+    //     std::cout << "Logs sent; i = " << i << "\n";
+    //     std::this_thread::sleep_for(std::chrono::seconds(1));
+    // }
 }
