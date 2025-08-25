@@ -9,29 +9,102 @@ void Server::m_Initialize()
     crow::mustache::set_base("templates");
 
     // clang-format off
-    CROW_ROUTE(appRef, "/favicon.ico")([](){
-        return crow::response(204);
-    });
-    
-    CROW_ROUTE(appRef, "/")([&](){
-
+    CROW_ROUTE(appRef, "/")([this]() {
         crow::mustache::context ctx;
-        ctx["logger_id"] = m_loggers.at(1);
 
-        std::cout << m_loggers.at(1) << "\n";
+        // Build array directly inside ctx["m_loggers"]
+        int idx = 0;
+        for (const auto& [id, name] : m_loggers) {
+            ctx["m_loggers"][idx]["id"] = id;
+            ctx["m_loggers"][idx]["name"] = name;
+            idx++;
+        }
 
         auto page = crow::mustache::load("server.html");
         return page.render(ctx);
     });
+
+    CROW_WEBSOCKET_ROUTE(appRef, "/ws")
+    .onopen([&](crow::websocket::connection& conn){
+        std::lock_guard<std::mutex> lock(m_ws_mutex);
+        m_active_connections.insert(&conn);
+    })
+    .onclose([&](crow::websocket::connection& conn, const std::string& reason, uint16_t){
+        std::lock_guard<std::mutex> lock(m_ws_mutex);
+        m_active_connections.erase(&conn);
+    })
+    .onmessage([&](crow::websocket::connection&, const std::string& data, bool is_binary){
+        std::lock_guard<std::mutex> lock(m_ws_mutex);
+
+        for (auto conn: m_active_connections)
+        {
+            if (is_binary)
+                conn->send_binary(data);
+            else
+                conn->send_text(data);
+        }
+    });
     // clang-format on
+}
+
+void Server::m_ProcessLogs()
+{
+    while (m_running)
+    {
+        std::unique_lock<std::mutex> lock(m_logQueueMutex);
+        // clang-format off
+        m_logCV.wait(lock, [this]{
+             return !m_logQueue.empty() || !m_running;
+        });
+        // clang-format on
+
+        while (!m_logQueue.empty())
+        {
+            auto message = m_logQueue.front();
+            m_logQueue.pop();
+
+            lock.unlock();
+
+            // Send to all WebSocket clients
+            std::lock_guard<std::mutex> wsLock(m_ws_mutex);
+            for (auto conn : m_active_connections)
+            {
+                conn->send_text(message);
+            }
+
+            lock.lock();
+        }
+    }
 }
 
 void Server::Start()
 {
-    appRef.port(m_port).multithreaded().run();
+    m_running = true;
+
+    // Start logging thread
+    m_logThread = std::thread(&Server::m_ProcessLogs, this);
+
+    // clang-format off
+    m_serverThread = std::thread([this]() {
+        appRef.port(m_port).multithreaded().run();
+    });
+    // clang-format on
 }
 
-void Server::Stop() {}
+void Server::Stop()
+{
+    m_running = false;
+    m_logCV.notify_all();
+
+    // Stop Crow server
+    appRef.stop(); // stops the server loop
+    if (m_serverThread.joinable())
+        m_serverThread.join();
+
+    // Stop logging thread
+    if (m_logThread.joinable())
+        m_logThread.join();
+}
 
 void Server::RegisterLogger(int id, const std::string &title)
 {
@@ -41,6 +114,9 @@ void Server::RegisterLogger(int id, const std::string &title)
     std::cout << "Registered Logger: [" << std::to_string(id) << "] = " << title << "\n";
 }
 
-void Server::Log(const std::string &message, int id) {}
-
-void Server::m_SendMessage(const std::string &message, int id) {}
+void Server::Log(const std::string &message, int id)
+{
+    std::lock_guard<std::mutex> lock(m_logQueueMutex);
+    m_logQueue.push(std::to_string(id) + "-" + message);
+    m_logCV.notify_one();
+}

@@ -1,11 +1,99 @@
-<!doctype html>
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logger Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<body class="bg-gray-100 min-h-screen font-sans">
 
-<body>
-    <h1>HELLO WORLD FROM LOGGER {{ logger_id }}</h1>
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-semibold mb-4">Logger Dashboard</h1>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-4 mb-6">
+            <div class="flex flex-col">
+                <label for="filterName" class="mb-1 font-medium text-gray-700">Filter by Name</label>
+                <input id="filterName" type="text" placeholder="Enter logger name" class="px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex flex-col">
+                <label for="filterId" class="mb-1 font-medium text-gray-700">Filter by ID</label>
+                <input id="filterId" type="text" placeholder="Enter logger ID" class="px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <!-- Logger List -->
+        <div id="loggerContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+            {{#m_loggers}}
+            <div class="logger-card bg-white p-4 rounded-lg shadow hover:shadow-md transition">
+                <p class="font-medium text-gray-800">ID: {{id}}</p>
+                <p class="text-gray-600">Name: {{name}}</p>
+            </div>
+            {{/m_loggers}}
+        </div>
+
+        <!-- Live WebSocket Logs -->
+        <div class="bg-white rounded-lg shadow p-4">
+            <h2 class="text-lg font-semibold mb-2">Live Logs</h2>
+            <div id="logContainer" class="h-64 overflow-y-auto border p-2 bg-gray-50 rounded-md">
+                <!-- Incoming log messages appear here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Filtering loggers
+        const loggerContainer = document.getElementById('loggerContainer');
+        const filterNameInput = document.getElementById('filterName');
+        const filterIdInput = document.getElementById('filterId');
+
+        function filterLoggers() {
+            const nameFilter = filterNameInput.value.toLowerCase();
+            const idFilter = filterIdInput.value.toLowerCase();
+
+            const loggerCards = loggerContainer.querySelectorAll('.logger-card');
+
+            loggerCards.forEach(card => {
+                const name = card.querySelector('p:nth-child(2)').textContent.toLowerCase();
+                const id = card.querySelector('p:nth-child(1)').textContent.toLowerCase();
+
+                const matchName = !nameFilter || name.includes(nameFilter);
+                const matchId = !idFilter || id.includes(idFilter);
+
+                card.style.display = (matchName && matchId) ? '' : 'none';
+            });
+        }
+
+        filterNameInput.addEventListener('input', filterLoggers);
+        filterIdInput.addEventListener('input', filterLoggers);
+
+        // WebSocket receiver
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const logContainer = document.getElementById('logContainer');
+
+        ws.onopen = () => console.log("WebSocket connected");
+        ws.onclose = () => console.log("WebSocket disconnected");
+
+        ws.onmessage = (event) => {
+            let data = event.data;
+
+            // Expect format "id-message"
+            const delimiterIndex = data.indexOf('-');
+            if (delimiterIndex !== -1) {
+                const id = data.substring(0, delimiterIndex);
+                const msg = data.substring(delimiterIndex + 1);
+
+                const div = document.createElement('div');
+                div.textContent = `Logger ${id}: ${msg}`;
+                div.className = "p-1 border-b text-sm text-gray-800";
+                logContainer.appendChild(div);
+
+                logContainer.scrollTop = logContainer.scrollHeight; // auto-scroll
+            } else {
+                console.warn("Invalid WS message format:", data);
+            }
+        };
+    </script>
 </body>
-
 </html>
