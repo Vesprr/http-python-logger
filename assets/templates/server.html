@@ -1,99 +1,237 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
     <title>Logger Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen font-sans">
-
-    <div class="container mx-auto p-6">
-        <h1 class="text-2xl font-semibold mb-4">Logger Dashboard</h1>
-
-        <!-- Filters -->
-        <div class="flex flex-wrap gap-4 mb-6">
-            <div class="flex flex-col">
-                <label for="filterName" class="mb-1 font-medium text-gray-700">Filter by Name</label>
-                <input id="filterName" type="text" placeholder="Enter logger name" class="px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="flex flex-col">
-                <label for="filterId" class="mb-1 font-medium text-gray-700">Filter by ID</label>
-                <input id="filterId" type="text" placeholder="Enter logger ID" class="px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-        </div>
-
-        <!-- Logger List -->
-        <div id="loggerContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-            {{#m_loggers}}
-            <div class="logger-card bg-white p-4 rounded-lg shadow hover:shadow-md transition">
-                <p class="font-medium text-gray-800">ID: {{id}}</p>
-                <p class="text-gray-600">Name: {{name}}</p>
-            </div>
-            {{/m_loggers}}
-        </div>
-
-        <!-- Live WebSocket Logs -->
-        <div class="bg-white rounded-lg shadow p-4">
-            <h2 class="text-lg font-semibold mb-2">Live Logs</h2>
-            <div id="logContainer" class="h-64 overflow-y-auto border p-2 bg-gray-50 rounded-md">
-                <!-- Incoming log messages appear here -->
-            </div>
-        </div>
-    </div>
-
     <script>
-        // Filtering loggers
-        const loggerContainer = document.getElementById('loggerContainer');
-        const filterNameInput = document.getElementById('filterName');
-        const filterIdInput = document.getElementById('filterId');
-
-        function filterLoggers() {
-            const nameFilter = filterNameInput.value.toLowerCase();
-            const idFilter = filterIdInput.value.toLowerCase();
-
-            const loggerCards = loggerContainer.querySelectorAll('.logger-card');
-
-            loggerCards.forEach(card => {
-                const name = card.querySelector('p:nth-child(2)').textContent.toLowerCase();
-                const id = card.querySelector('p:nth-child(1)').textContent.toLowerCase();
-
-                const matchName = !nameFilter || name.includes(nameFilter);
-                const matchId = !idFilter || id.includes(idFilter);
-
-                card.style.display = (matchName && matchId) ? '' : 'none';
-            });
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
         }
 
-        filterNameInput.addEventListener('input', filterLoggers);
-        filterIdInput.addEventListener('input', filterLoggers);
+        .terminal {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                "Liberation Mono", "Courier New", monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
 
-        // WebSocket receiver
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
-        const logContainer = document.getElementById('logContainer');
+        .chip {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
 
-        ws.onopen = () => console.log("WebSocket connected");
-        ws.onclose = () => console.log("WebSocket disconnected");
+        .chip-selected {
+            background-color: #3b82f6;
+            /* Tailwind blue-500 */
+            color: white;
+        }
+    </style>
+</head>
 
-        ws.onmessage = (event) => {
-            let data = event.data;
+<body class="bg-zinc-50 dark:bg-zinc-900 h-screen flex flex-col text-zinc-800 dark:text-zinc-200">
 
-            // Expect format "id-message"
-            const delimiterIndex = data.indexOf('-');
-            if (delimiterIndex !== -1) {
-                const id = data.substring(0, delimiterIndex);
-                const msg = data.substring(delimiterIndex + 1);
+    <!-- Header -->
+    <header
+        class="p-4 bg-zinc-200 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between">
+        <h1 class="font-semibold text-lg">Logger Dashboard</h1>
+        <div class="flex items-center space-x-2">
+            <button id="themeToggle"
+                class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600">
+                Light
+            </button>
+            <button id="clearBtn"
+                class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600">
+                Clear Logs
+            </button>
+            <div id="status" class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700">
+                Disconnected
+            </div>
+        </div>
+    </header>
 
-                const div = document.createElement('div');
-                div.textContent = `Logger ${id}: ${msg}`;
-                div.className = "p-1 border-b text-sm text-gray-800";
-                logContainer.appendChild(div);
+    <!-- Logger chips -->
+    <div id="loggerChips"
+        class="p-3 bg-zinc-100 dark:bg-zinc-800 flex flex-wrap gap-2 border-b border-zinc-300 dark:border-zinc-700">
 
-                logContainer.scrollTop = logContainer.scrollHeight; // auto-scroll
+        <!-- Meta chip -->
+        <div class="chip px-3 py-1 rounded-full border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200 text-sm"
+            data-id="meta">
+            Meta
+        </div>
+
+        <!-- Logger chips from template -->
+        {{#m_loggers}}
+        <div class="chip px-3 py-1 rounded-full border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200 text-sm"
+            data-id="{{id}}">
+            {{name}}
+        </div>
+        {{/m_loggers}}
+    </div>
+
+    <!-- Stats -->
+    <div
+        class="p-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400">
+        <div id="received">Received: 0</div>
+    </div>
+
+    <!-- Terminal -->
+    <main id="messages" class="flex-1 overflow-y-auto p-4 bg-zinc-50 dark:bg-zinc-900 terminal text-sm flex flex-col">
+    </main>
+
+    <script>
+        let ws, recvCount = 0;
+        let selectedLogger = null;
+
+        // Cache last 200 messages
+        const messageCache = [];
+
+        // DOM elements
+        const messages = document.getElementById('messages');
+        const status = document.getElementById('status');
+        const received = document.getElementById('received');
+        const clearBtn = document.getElementById('clearBtn');
+        const themeToggle = document.getElementById('themeToggle');
+        const loggerChips = document.getElementById('loggerChips');
+
+        // Theme init
+        if (localStorage.theme === "light") {
+            document.documentElement.classList.remove("dark");
+            themeToggle.textContent = "Dark";
+        } else {
+            document.documentElement.classList.add("dark");
+            themeToggle.textContent = "Light";
+        }
+
+        themeToggle.onclick = () => {
+            if (document.documentElement.classList.contains("dark")) {
+                document.documentElement.classList.remove("dark");
+                localStorage.theme = "light";
+                themeToggle.textContent = "Dark";
             } else {
-                console.warn("Invalid WS message format:", data);
+                document.documentElement.classList.add("dark");
+                localStorage.theme = "dark";
+                themeToggle.textContent = "Light";
             }
         };
+
+        // Clear messages
+        clearBtn.onclick = () => {
+            messages.innerHTML = "";
+            messageCache.length = 0; // clear cache as well
+
+            updateStats();
+        };
+
+        // Add message both to terminal and cache
+        function addMessageToCache(id, msg) {
+            // Add to cache
+            messageCache.push({ id, msg });
+
+            // Limit cache to 200
+            if (messageCache.length > 200) messageCache.shift();
+
+            // Only render if it matches selectedLogger
+            if (selectedLogger === "meta") {
+                // Show messages with id "0" or connection messages (id == "--")
+                if (id === "0" || id === "--") {
+                    renderMessage(id, msg);
+                }
+            } else if (id === selectedLogger) {
+                renderMessage(id, msg);
+            }
+        }
+
+        // Render a message in the terminal
+        function renderMessage(id, msg) {
+            const line = document.createElement("div");
+            line.textContent = id + " - " + msg;
+            line.className =
+                "block px-2 py-1 cursor-default transition mx-0.5 bg-blue-200 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 hover:bg-blue-300 dark:hover:bg-blue-800/60";
+            messages.prepend(line);
+        }
+
+        // Update message stats
+        function updateStats() {
+            received.textContent = "Received: " + messageCache.length;
+        }
+
+        // Event delegation for chip clicks
+        loggerChips.addEventListener('click', (event) => {
+            const chip = event.target.closest('.chip');
+            if (!chip) return;
+
+            // Remove selection from all
+            loggerChips.querySelectorAll('.chip').forEach(c => {
+                c.classList.remove('bg-blue-500', 'text-white', 'dark:bg-blue-600', 'dark:text-white');
+                c.classList.add('bg-zinc-50', 'dark:bg-zinc-900', 'text-zinc-900', 'dark:text-zinc-200');
+            });
+
+            // Select clicked chip
+            chip.classList.remove('bg-zinc-50', 'dark:bg-zinc-900', 'text-zinc-900', 'dark:text-zinc-200');
+            chip.classList.add('bg-blue-500', 'text-white', 'dark:bg-blue-600', 'dark:text-white');
+
+            selectedLogger = chip.getAttribute('data-id');
+
+            // Re-render terminal from cache
+            messages.innerHTML = "";
+            if (selectedLogger === "meta") {
+                messageCache
+                    .filter(m => m.id === "0" || m.id === "--")
+                    .forEach(m => renderMessage(m.id, m.msg));
+            } else {
+                messageCache
+                    .filter(m => m.id === selectedLogger)
+                    .forEach(m => renderMessage(m.id, m.msg));
+            }
+        });
+
+
+        // WebSocket connection
+        function connectWebSocket(url) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                return;
+            }
+
+            ws = new WebSocket(url);
+            ws.onopen = () => {
+                addMessageToCache("--", "Connected");
+                status.textContent = "Connected";
+            };
+            ws.onclose = () => {
+                addMessageToCache("--", "Closed");
+                status.textContent = "Disconnected";
+            };
+            ws.onerror = () => addMessageToCache("--", "Error");
+            ws.onmessage = (e) => {
+                recvCount++;
+                const delimiterIndex = e.data.indexOf('-');
+                if (delimiterIndex !== -1) {
+                    const id = e.data.substring(0, delimiterIndex);
+                    const msg = e.data.substring(delimiterIndex + 1);
+                    addMessageToCache(id, msg);
+                }
+                updateStats();
+            };
+        }
+
+        // Select first chip by default
+        const firstChip = loggerChips.querySelector('.chip[data-id]:not([data-id="meta"])');
+        if (firstChip) {
+            firstChip.classList.remove('bg-zinc-50', 'dark:bg-zinc-900', 'text-zinc-900', 'dark:text-zinc-200');
+            firstChip.classList.add('bg-blue-500', 'text-white', 'dark:bg-blue-600', 'dark:text-white');
+            selectedLogger = firstChip.getAttribute('data-id');
+        }
+
+        // Connect to default WebSocket on page load
+        connectWebSocket(`ws://${window.location.host}/ws`);
     </script>
 </body>
+
 </html>

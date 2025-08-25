@@ -14,6 +14,8 @@ int main()
 
     server.Start();
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
     // Logging loop in main thread
     for (unsigned int i = 0; i < 100; i++)
     {
