@@ -5,7 +5,7 @@
       "name": "Debug main (lldb)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/build/main",
+      "program": "${workspaceFolder}/out/bin/main",
       "args": [],
       "cwd": "${workspaceFolder}",
       "stopOnEntry": false,

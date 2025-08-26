@@ -25,7 +25,7 @@ int main()
         LOG_WARN(loggerB, "Message B " + std::to_string(i));
         LOG_ERROR(loggerC, "Message C " + std::to_string(i));
 
-        LOG_CUSTOM(loggerD, "Some Custom Message", "custom_level");
+        LOG_CUSTOM(loggerD, "Some Custom Message", "abcdefghghijkl");
 
         std::cout << "Logs sent; i = " << i << "\n";
 

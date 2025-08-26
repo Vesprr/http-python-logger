@@ -252,17 +252,67 @@
                 ws.onopen=()=>{ addMessageToCache(65535,"Connected"); status.textContent="Connected"; };
                 ws.onclose=()=>{ addMessageToCache(65535,"Closed"); status.textContent="Disconnected"; };
                 ws.onerror=()=>addMessageToCache(65535,"Error");
-                ws.onmessage=e=>{
+                ws.onmessage = e => {
                     recvCount++;
-                    if(typeof e.data==="string"){
-                        const idx=e.data.indexOf("-");
-                        if(idx!==-1){ addMessageToCache(e.data.substring(0,idx), e.data.substring(idx+1)); }
-                    } else if(e.data instanceof ArrayBuffer){
-                        const bytes=new Uint8Array(e.data);
-                        if(bytes.length>=2){ addMessageToCache(String((bytes[0]<<8)|bytes[1]), new TextDecoder().decode(bytes.subarray(2))); }
+                    if (e.data instanceof ArrayBuffer) {
+                        const bytes = new Uint8Array(e.data);
+
+                        // DEBUG: Print all bytes in hex; DO NOT REMOVE
+                        // const hexString = Array.from(bytes)
+                        //     .map(b => b.toString(16).padStart(2, '0'))
+                        //     .join(' ');
+                        // console.log(hexString);
+
+                        if (bytes.length >= 23) { // minimum size check
+                            // 1. Logger ID (big-endian)
+                            const loggerId = (bytes[0] << 8) | bytes[1];
+
+                            // 2. Line number (big-endian)
+                            const lineNumber = (bytes[2] << 8) | bytes[3];
+
+                            // 3. Function name length (big-endian)
+                            const funcLen = (bytes[4] << 8) | bytes[5];
+
+                            // 4. File name length (big-endian)
+                            const fileLen = (bytes[6] << 8) | bytes[7];
+
+                            // 5. Time
+                            const year = (bytes[8] << 8) | bytes[9];
+                            const month = bytes[10];
+                            const day = bytes[11];
+                            const hour = bytes[12];
+                            const minute = bytes[13];
+                            const second = bytes[14];
+                            const timestamp = `[${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')} ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:${String(second).padStart(2,'0')}]`;
+
+                            // 6. Log level (up to 8 bytes)
+                            const logLevelBytes = bytes.slice(15, 23);
+                            const logLevel = new TextDecoder().decode(logLevelBytes).trim();
+
+                            // 7. Function Name
+                            const funcStart = 23;
+                            const funcEnd = funcStart + funcLen;
+                            const funcName = new TextDecoder().decode(bytes.slice(funcStart, funcEnd));
+
+                            // 8. File Name
+                            const fileStart = funcEnd;
+                            const fileEnd = fileStart + fileLen;
+                            const fileName = new TextDecoder().decode(bytes.slice(fileStart, fileEnd));
+
+                            // 9. Message
+                            const msgStart = fileEnd;
+                            const message = new TextDecoder().decode(bytes.slice(msgStart));
+
+                            // Combine formatted log
+                            const formattedMsg = `${timestamp} [${logLevel}] ${fileName}:${lineNumber} ${funcName} ${message}`;
+
+                            // Add to cache & render
+                            addMessageToCache(loggerId, formattedMsg);
+                            updateStats();
+                        }
                     }
-                    updateStats();
                 };
+
             }
 
             /* --------------------- Init --------------------- */
