@@ -17,7 +17,7 @@ int main()
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
     // Logging loop in main thread
-    for (unsigned int i = 0; i < 100; i++)
+    for (unsigned int i = 1; i <= 100; i++)
     {
         loggerA.log("Message A " + std::to_string(i));
         loggerB.log("Message B " + std::to_string(i));

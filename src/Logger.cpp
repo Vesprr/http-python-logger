@@ -1,6 +1,12 @@
 #include "Logger.hpp"
 
-Logger::Logger(Server &server, int logger_id, const std::string &title)
+Logger::Logger(Server &server, const std::string &title)
+    : m_server(server)
+{
+    
+}
+
+Logger::Logger(Server &server, uint16_t logger_id, const std::string &title)
     : m_server(server), m_logger_id(logger_id)
 {
     m_server.RegisterLogger(logger_id, title);

@@ -33,15 +33,20 @@ void Server::m_Initialize()
         std::lock_guard<std::mutex> lock(m_ws_mutex);
         m_active_connections.erase(&conn);
     })
+    // triggered when a message is recieved; not at sent
     .onmessage([&](crow::websocket::connection&, const std::string& data, bool is_binary){
         std::lock_guard<std::mutex> lock(m_ws_mutex);
 
-        for (auto conn: m_active_connections)
+        std::cout << "MESSAGE" << "\n";
+
+        // making a snapshot for iterating
+        auto conns = m_active_connections;
+        // snapshot is taking as the methods is async and m_active_connections may change while iterating through the list
+        // which may lead dereferencing invalid memory
+
+        for (auto* conn: conns)
         {
-            if (is_binary)
-                conn->send_binary(data);
-            else
-                conn->send_text(data);
+            conn->send_binary(getLogFormat(data, 0xFFFF));
         }
     });
     // clang-format on
@@ -69,7 +74,7 @@ void Server::m_ProcessLogs()
             std::lock_guard<std::mutex> wsLock(m_ws_mutex);
             for (auto conn : m_active_connections)
             {
-                conn->send_text(message);
+                conn->send_binary(message);
             }
 
             lock.lock();
@@ -106,7 +111,7 @@ void Server::Stop()
         m_logThread.join();
 }
 
-void Server::RegisterLogger(int id, const std::string &title)
+void Server::RegisterLogger(uint16_t id, const std::string &title)
 {
     // store logger title
     m_loggers[id] = title;
@@ -114,9 +119,9 @@ void Server::RegisterLogger(int id, const std::string &title)
     std::cout << "Registered Logger: [" << std::to_string(id) << "] = " << title << "\n";
 }
 
-void Server::Log(const std::string &message, int id)
+void Server::Log(const std::string &message, uint16_t id)
 {
     std::lock_guard<std::mutex> lock(m_logQueueMutex);
-    m_logQueue.push(std::to_string(id) + "-" + message);
+    m_logQueue.push(getLogFormat(message, id));
     m_logCV.notify_one();
 }
