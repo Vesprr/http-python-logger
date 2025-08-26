@@ -31,6 +31,6 @@ void Logger::Log(const std::string &message,
     // (pos + 1) since / or \ exists at index
     std::string filename = (pos == std::string::npos) ? file_path : file_path.substr(pos + 1);
 
-    // send tha parameters to Server::getLogFormat to encode message
-    m_server.m_Log(Server::getLogFormat(message, m_logger_id, level_formatted, filename, func, line));
+    // send tha parameters to Server::encodeLogMessage to encode message
+    m_server.m_Log(Server::encodeLogMessage(message, m_logger_id, level_formatted, filename, func, line));
 }

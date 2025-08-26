@@ -74,7 +74,7 @@ public:
     /// @param func Name of function `log` is called from
     /// @param line Line Number the `log` is called from
     /// @return `std::string` containing the result string; Crow takes in std::string as input in `connection.send_binary(* MESSAGE_STR *)`
-    inline static std::string getLogFormat(const std::string &message,
+    inline static std::string encodeLogMessage(const std::string &message,
                                            uint16_t logger_id,
                                            const std::string &level,
                                            const std::string &file,

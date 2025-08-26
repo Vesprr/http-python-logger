@@ -37,8 +37,8 @@ void Server::m_Initialize()
     })
     // triggered when a message is recieved; not at sent
     .onmessage([&](crow::websocket::connection& conn, const std::string& data, bool is_binary){
-        conn.send_binary(getLogFormat(data, 0xFFFF, "RECIEVE", "", "", 0));
-        std::cout << "Receive message sent response: \n" << getLogFormat(data, 0xFFFF, "RECIEVE", "", "", 0) << " to sender. \n";
+        conn.send_binary(encodeLogMessage(data, 0xFFFF, "RECIEVE", "", "", 0));
+        std::cout << "Receive message sent response: \n" << encodeLogMessage(data, 0xFFFF, "RECIEVE", "", "", 0) << " to sender. \n";
     });
     // clang-format on
 }
