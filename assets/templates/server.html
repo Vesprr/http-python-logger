@@ -159,9 +159,8 @@
 
         function renderMessage(id, msg) {
             const line = document.createElement("div");
-            const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
 
-            line.textContent = `[${time}] ${msg}`;
+            line.textContent = msg;
             line.className =
                 "block px-2 py-1 cursor-default transition mx-0.5 bg-blue-200 dark:bg-blue-900/40 " +
                 "text-blue-800 dark:text-blue-200 hover:bg-blue-300 dark:hover:bg-blue-800/60";
@@ -261,7 +260,7 @@
         }
 
         // Connect on load
-        connectWebSocket(`ws://${window.location.host}/ws`);
+        connectWebSocket(`ws://localhost:{{port}}/ws`);
     </script>
 </body>
 

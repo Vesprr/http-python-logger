@@ -43,7 +43,7 @@ private:
 
     void m_ProcessLogs();
 
-    void Log(const std::string &message, uint16_t id);
+    void m_Log(const std::string &message);
 
 public:
     Server() = delete;
@@ -64,19 +64,39 @@ public:
     ///
     /// - First two bytes are ID (in big-endian format)
     ///
-    /// - Rest of bytes are message bytes
+    /// - Rest of bytes are formatted message bytes.
+    /// Messages for formatted as [time] [level] [file:line func] message
     ///
     /// @param message The message to encode
     /// @param logger_id The id of the Logger to encode
+    /// @param level String for Log Level
+    /// @param file Name of file the `log` is called from
+    /// @param func Name of function `log` is called from
+    /// @param line Line Number the `log` is called from
     /// @return `std::string` containing the result string; Crow takes in std::string as input in `connection.send_binary(* MESSAGE_STR *)`
-    inline static std::string getLogFormat(const std::string &message, uint16_t logger_id)
+    inline static std::string getLogFormat(const std::string &message,
+                                           uint16_t logger_id,
+                                           const std::string &level,
+                                           const std::string &file,
+                                           const std::string &func,
+                                           int line)
     {
+        // timestamp
+        auto now = std::chrono::system_clock::now();
+        auto now_time_t = std::chrono::system_clock::to_time_t(now);
+
+        // build metadata string
+        // "[time] [level] [file:line func] " trailing space to add padding when message is appended
+        std::ostringstream meta;
+        meta << "[" << std::put_time(std::localtime(&now_time_t), "%F %T") << "]"
+             << " [" << level << "]"
+             << " [" << file << ":" << line << " " << func << "] ";
+
         // crow.send_binary takes in std::string as well
-        // also networking so not much of an issue
-        // as bigger bottlenecks exists
+        // also networking, so not much of an issue; as bigger bottlenecks exists
         std::string buffer;
-        // 2 bytes of id + N bytes of message
-        buffer.resize(2 + message.size());
+        // 2 bytes of id + N1 bytes of meta + N2 bytes of message
+        buffer.resize(2 + meta.str().size() + message.size());
 
         // sending id as big-endian format; as is standard
         // some cpus use little-endian (0x1234 as [0x34, 0x12]) and other use big-endian (0x1234 as [0x12, 0x34])
@@ -91,8 +111,15 @@ public:
         // we get 0x0034; static_cast to truncate higher bits and get 0x34
         // store as second byt i.e buffer[1]
 
-        // copy the message into the buffer, after the two bytes
-        std::copy(message.begin(), message.end(), buffer.begin() + 2);
+        // copy the meta, after the two bytes of id
+        // meta.str() returns reference to temporary string
+        std::string meta_str = meta.str();
+        memcpy(buffer.data() + 2, meta_str.data(), meta_str.size());
+        // copy the message after the two bytes of id + string length of meta
+        memcpy(buffer.data() + 2 + meta_str.size(), message.data(), message.size());
+        // syntax: memcpy(dst*, src*, size)
+        // copies data from `src` to `src + size` to `dst`
+        // size = width of data to copy
 
         return buffer;
     }

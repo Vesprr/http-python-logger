@@ -20,6 +20,8 @@ void Server::m_Initialize()
             idx++;
         }
 
+        ctx["port"] = m_port;
+
         auto page = crow::mustache::load("server.html");
         return page.render(ctx);
     });
@@ -34,20 +36,9 @@ void Server::m_Initialize()
         m_active_connections.erase(&conn);
     })
     // triggered when a message is recieved; not at sent
-    .onmessage([&](crow::websocket::connection&, const std::string& data, bool is_binary){
-        std::lock_guard<std::mutex> lock(m_ws_mutex);
-
-        std::cout << "MESSAGE" << "\n";
-
-        // making a snapshot for iterating
-        auto conns = m_active_connections;
-        // snapshot is taking as the methods is async and m_active_connections may change while iterating through the list
-        // which may lead dereferencing invalid memory
-
-        for (auto* conn: conns)
-        {
-            conn->send_binary(getLogFormat(data, 0xFFFF));
-        }
+    .onmessage([&](crow::websocket::connection& conn, const std::string& data, bool is_binary){
+        conn.send_binary(getLogFormat(data, 0xFFFF, "RECIEVE", "", "", 0));
+        std::cout << "Receive message sent response: \n" << getLogFormat(data, 0xFFFF, "RECIEVE", "", "", 0) << " to sender. \n";
     });
     // clang-format on
 }
@@ -72,7 +63,13 @@ void Server::m_ProcessLogs()
 
             // Send to all WebSocket clients
             std::lock_guard<std::mutex> wsLock(m_ws_mutex);
-            for (auto conn : m_active_connections)
+
+            // making a snapshot for iterating
+            auto conns = m_active_connections;
+            // snapshot is taking as the methods is async and m_active_connections may change while iterating through the list
+            // which may lead dereferencing invalid memory
+
+            for (auto *conn : conns)
             {
                 conn->send_binary(message);
             }
@@ -119,9 +116,11 @@ void Server::RegisterLogger(uint16_t id, const std::string &title)
     std::cout << "Registered Logger: [" << std::to_string(id) << "] = " << title << "\n";
 }
 
-void Server::Log(const std::string &message, uint16_t id)
+/// @brief Adds the message to a queue, from which messages are sent to. all client asynchronously
+/// @param message The formatted message
+void Server::m_Log(const std::string &message)
 {
     std::lock_guard<std::mutex> lock(m_logQueueMutex);
-    m_logQueue.push(getLogFormat(message, id));
+    m_logQueue.push(message);
     m_logCV.notify_one();
 }
