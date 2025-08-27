@@ -177,13 +177,13 @@
 
                 toString() {
                     const ts = `[${this.timestamp.getFullYear()}-${String(this.timestamp.getMonth()+1).padStart(2,'0')}-${String(this.timestamp.getDate()).padStart(2,'0')} ` +
-                               `${String(this.timestamp.getHours()).padStart(2,'0')}:${String(this.timestamp.getMinutes()).padStart(2,'0')}:${String(this.timestamp.getSeconds()).padStart(2,'0')}]`;
+                               `${String(this.timestamp.getHours()).padStart(2,'0')}:${String(this.timestamp.getMinutes()).padStart(2,'0')}:${String(this.timestamp.getSeconds()).padStart(2,'0')}.${String(this.timestamp.getMilliseconds()).padStart(3,'0')}]`;
                     return `${ts} [${this.logLevel}] [${this.fileName}:${this.lineNumber} ${this.funcName}] ${this.messageText}`;
                 }
 
                 computeColors() {
                     const base = {
-                        "META":  {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
+                        // "WS": handles by has function to give purple
                         "INFO":  {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
                         "WARN":  {bg:"bg-yellow-200 dark:bg-yellow-900/40", text:"text-yellow-800 dark:text-yellow-200", hover:"hover:bg-yellow-300 dark:hover:bg-yellow-800/60"},
                         "ERROR": {bg:"bg-red-200 dark:bg-red-900/40", text:"text-red-800 dark:text-red-200", hover:"hover:bg-red-300 dark:hover:bg-red-800/60"}
@@ -268,6 +268,7 @@
                 nextBtn.disabled = currentPage === totalPages - 1;
             }
             function renderPageFromMerged() {
+                console.log("renderPageFromMerged");
                 messages.innerHTML = "";
                 const start = currentPage * PAGE_SIZE;
                 const slice = mergedCache.slice(start, start + PAGE_SIZE);
@@ -282,6 +283,7 @@
                 messages.appendChild(frag);
             }
             function renderSelectedMessages() {
+                console.log("renderSelectedMessages");
                 updatePaginationInfo(mergedCache.length);
                 renderPageFromMerged();
             }
@@ -298,13 +300,24 @@
 
                 insertIntoMerged(msgObj);
             }
-            function addMetaMessage(text) {
+            function addWSConnMessage(text) {
                 const now = new Date();
-                const msgObj = new Message(65535, 0, "system", "system", "META",
-                                           now.getFullYear(), now.getMonth() + 1, now.getDate(),
-                                           now.getHours(), now.getMinutes(),
-                                           now.getSeconds() + now.getMilliseconds(), text);
+                const msgObj = new Message(
+                    65535, 0, "sys", "sys", "WS",
+                    now.getFullYear(), now.getMonth() + 1, now.getDate(),
+                    now.getHours(), now.getMinutes(),
+                    now.getSeconds() * 1000 + now.getMilliseconds(), // proper msSinceMinute
+                    text
+                );
                 addMessage(msgObj);
+
+                // Ensure UI updates
+                updateStats();
+                if (currentPage === 0) {
+                    renderSelectedMessages();
+                } else {
+                    updatePaginationInfo(mergedCache.length);
+                }
             }
 
             /* ============================================================
@@ -376,10 +389,15 @@
                Clear
             ============================================================ */
             clearBtn.onclick = () => {
-                selectedLoggers.forEach(id => messageCache[id] = []);
+                // Clear all logs from cache
+                for (const key in messageCache) {
+                    messageCache[key] = [];
+                }
+                messageQueue.length = 0;   // drop pending messages
+                mergedCache = [];
                 currentPage = 0;
-                renderSelectedMessages();
                 updateStats();
+                renderSelectedMessages();
             };
 
             /* ============================================================
@@ -390,9 +408,9 @@
                 ws = new WebSocket(url);
                 ws.binaryType = "arraybuffer";
 
-                ws.onopen   = () => { addMetaMessage("Connected"); status.textContent = "Connected"; };
-                ws.onclose  = () => { addMetaMessage("Closed"); status.textContent = "Disconnected"; };
-                ws.onerror  = () => addMetaMessage("Error");
+                ws.onopen   = () => { addWSConnMessage("Connected"); status.textContent = "Connected"; };
+                ws.onclose  = () => { addWSConnMessage("Closed"); status.textContent = "Disconnected"; };
+                ws.onerror  = () => addWSConnMessage("Error");
                 ws.onmessage = e => {
                     if (!(e.data instanceof ArrayBuffer)) return;
                     const bytes = new Uint8Array(e.data);
@@ -440,19 +458,22 @@
                 if (metaChip) loggerChips.appendChild(metaChip);
             }
 
+            connectWebSocket(`ws://localhost:{{port}}/ws`);
+
             initTheme();
             sortChips();
             loggerChips.querySelectorAll(".chip").forEach(c => { if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id)); });
             updateChips();
+            rebuildMergedCache();
             updateStats();
             renderSelectedMessages();
-            connectWebSocket(`ws://localhost:{{port}}/ws`);
 
             /* Batch flush every given ms from cpp */
             setInterval(() => {
                 if (messageQueue.length === 0) return;
                 const q = messageQueue.splice(0, messageQueue.length);
                 q.forEach(addMessage);
+                rebuildMergedCache();
                 updateStats();
                 if (currentPage === 0) renderSelectedMessages();
                 else updatePaginationInfo(mergedCache.length);

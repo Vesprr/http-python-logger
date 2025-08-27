@@ -8,6 +8,7 @@ Logger::Logger(Server &server, const std::string &title)
 Logger::Logger(Server &server, uint16_t logger_id, const std::string &title)
     : m_server(server), m_logger_id(logger_id)
 {
+    // Automatically register the Logger into the Server
     m_server.RegisterLogger(logger_id, title);
 }
 

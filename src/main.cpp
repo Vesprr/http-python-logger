@@ -5,6 +5,7 @@
 #include "Server.hpp"
 #include "Logger.hpp"
 
+// SAMPLE USAGE IN CPP
 int main()
 {
     Server server(5000);
@@ -30,7 +31,7 @@ int main()
         LOG_CUSTOM(loggerD, "(BA) Message from Logger D " + std::to_string(i), "CUSTOM1");
         LOG_CUSTOM(loggerE, "(BA) Message from Logger E " + std::to_string(i), "CUSTOM2");
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         LOG_INFO(loggerA, "(BB) Message from Logger A " + std::to_string(i));
         LOG_WARN(loggerB, "(BB) Message from Logger B " + std::to_string(i));
@@ -41,7 +42,7 @@ int main()
 
         std::cout << "Logs sent; i = " << i << "\n";
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     auto end = std::chrono::high_resolution_clock::now().time_since_epoch();

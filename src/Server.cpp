@@ -1,6 +1,6 @@
 #include "Server.hpp"
 
-Server::Server(uint16_t port, uint16_t refreshIntervalMs = 50)
+Server::Server(uint16_t port, uint16_t refreshIntervalMs)
     : m_port(port), m_refreshIntervalMs(refreshIntervalMs) { m_Initialize(); }
 
 Server::~Server() { Stop(); }
