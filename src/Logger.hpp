@@ -14,7 +14,6 @@ private:
 
 public:
     Logger() = delete;
-    Logger(Server &server, const std::string &title);
     Logger(Server &server, uint16_t logger_id, const std::string &title);
 
     void Log(uint16_t line,

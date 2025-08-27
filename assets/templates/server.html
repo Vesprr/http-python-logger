@@ -268,7 +268,6 @@
                 nextBtn.disabled = currentPage === totalPages - 1;
             }
             function renderPageFromMerged() {
-                console.log("renderPageFromMerged");
                 messages.innerHTML = "";
                 const start = currentPage * PAGE_SIZE;
                 const slice = mergedCache.slice(start, start + PAGE_SIZE);
@@ -283,7 +282,6 @@
                 messages.appendChild(frag);
             }
             function renderSelectedMessages() {
-                console.log("renderSelectedMessages");
                 updatePaginationInfo(mergedCache.length);
                 renderPageFromMerged();
             }
@@ -408,7 +406,7 @@
                 ws = new WebSocket(url);
                 ws.binaryType = "arraybuffer";
 
-                ws.onopen   = () => { addWSConnMessage("Connected"); status.textContent = "Connected"; };
+                ws.onopen   = () => { addWSConnMessage("Connected"); status.textContent = "Connected at {{port}}"; };
                 ws.onclose  = () => { addWSConnMessage("Closed"); status.textContent = "Disconnected"; };
                 ws.onerror  = () => addWSConnMessage("Error");
                 ws.onmessage = e => {
@@ -471,11 +469,13 @@
             /* Batch flush every given ms from cpp */
             setInterval(() => {
                 if (messageQueue.length === 0) return;
-                const q = messageQueue.splice(0, messageQueue.length);
-                q.forEach(addMessage);
-                rebuildMergedCache();
+                // take all messages out of messageQueue in one go and store them in "queue"
+                const queue = messageQueue.splice(0, messageQueue.length);
+                queue.forEach(addMessage);
                 updateStats();
+                // auto-refresh with new messages
                 if (currentPage === 0) renderSelectedMessages();
+                // keep the user’s current scroll/page, only update total pages info
                 else updatePaginationInfo(mergedCache.length);
             }, {{refreshInterval}});
         </script>

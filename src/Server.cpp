@@ -1,14 +1,11 @@
 #include "Server.hpp"
 
 Server::Server(uint16_t port, uint16_t refreshIntervalMs)
-    : m_port(port), m_refreshIntervalMs(refreshIntervalMs) { m_Initialize(); }
-
-Server::~Server() { Stop(); }
-
-void Server::m_Initialize()
+    : m_port(port), m_refreshIntervalMs(refreshIntervalMs)
 {
     crow::mustache::set_base("templates");
 
+    // setup routes
     // clang-format off
     CROW_ROUTE(appRef, "/")([this]() {
         crow::mustache::context ctx;
@@ -29,6 +26,7 @@ void Server::m_Initialize()
     });
 
     CROW_WEBSOCKET_ROUTE(appRef, "/ws")
+    // handling connections in such a way that m_active_connections are always valid
     .onopen([&](crow::websocket::connection& conn){
         std::lock_guard<std::mutex> lock(m_ws_mutex);
         m_active_connections.insert(&conn);
@@ -39,43 +37,79 @@ void Server::m_Initialize()
     })
     // triggered when a message is recieved; not at sent
     .onmessage([&](crow::websocket::connection& conn, const std::string& data, bool is_binary){
+        // no mutex needed here as no member global member is accessed
         conn.send_binary(encodeLogMessage(0xFFFF, 0, "", "", "RECIEVE", data));
         std::cout << "Receive message sent response: \n" << encodeLogMessage(0xFFFF, 0, "", "", "RECIEVE", data) << " to sender. \n";
     });
     // clang-format on
 }
 
-void Server::m_ProcessLogs()
+Server::~Server() { Stop(); }
+
+void Server::m_tSendLogs()
 {
+    // keeping the `m_logSenderThread` alive
     while (m_running)
     {
         std::unique_lock<std::mutex> lock(m_logQueueMutex);
+
+        // `wait` this blocks the thread until it is notified
+        // when notified it evaluates the predicate
+        // if true, the code after `wait` executes
+        // otherwise the thread continues to sleep; analogous to `continue;`, code after is not executed
         // clang-format off
-        m_logCV.wait(lock, [this]{
-             return !m_logQueue.empty() || !m_running;
+        m_logSenderNotifier.wait(lock, [this]{
+            // only continue if there is something to log; then logs it
+            // OR the server is stopping; exits gracefully
+            return !m_logQueue.empty() || !m_running;
+            // || !m_running is used instead of && m_running in the case that the server is starting to shut down
+            // i.e at line 112 on main thread
+            // the server has not stopped but m_running is false thus the thread will continue
+            // and execute any logic that for gracefully stopping this thread
+            // here it clears up the queue; messages will be sent to active clients
         });
         // clang-format on
 
         while (!m_logQueue.empty())
         {
+            // gets the latest message from queue; and remove it from queue
             auto message = m_logQueue.front();
             m_logQueue.pop();
 
+            // lock is no longer needed; thus it is unlocked
+            // if not unlocked lock will be held even when the message is being sent
+            // this will not allow other threads to use the queue and thus wasting time
             lock.unlock();
 
-            // Send to all WebSocket clients
+            // lock_guard is released when scope ends
             std::lock_guard<std::mutex> wsLock(m_ws_mutex);
 
             // making a snapshot for iterating
             auto conns = m_active_connections;
-            // snapshot is taking as the methods is async and m_active_connections may change while iterating through the list
+            // snapshot is taken as the method is async and m_active_connections may change while iterating through the list
             // which may lead dereferencing invalid memory
 
+            // sending the messages
+            // `conns` are valid here; only valid connections are held in the set
             for (auto *conn : conns)
             {
-                conn->send_binary(message);
+                // try catch is still used even for mutex because
+                // mutex garentees our program doesn't access invalid memory
+                // but if a connection is closed, and this mutex is acquired in our memory 
+                // that connection is still valid and message will be sent anyways
+                // wheather crows handles this is unsure
+                // thus try catch is used
+                try
+                {
+                    conn->send_binary(message);
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "Failed to send to a client: " << e.what() << "\n";
+                }
             }
 
+            // lock for the next loop
             lock.lock();
         }
     }
@@ -85,11 +119,12 @@ void Server::Start()
 {
     m_running = true;
 
-    // Start logging thread
-    m_logThread = std::thread(&Server::m_ProcessLogs, this);
+    // start logging queuer thread
+    m_logSenderThread = std::thread(&Server::m_tSendLogs, this);
 
+    // run crow app on `m_crowThread`
     // clang-format off
-    m_serverThread = std::thread([this]() {
+    m_crowThread = std::thread([this]() {
         appRef.port(m_port).multithreaded().run();
     });
     // clang-format on
@@ -98,33 +133,38 @@ void Server::Start()
 void Server::Stop()
 {
     m_running = false;
-    m_logCV.notify_all();
 
-    // Stop Crow server
-    appRef.stop(); // stops the server loop
-    if (m_serverThread.joinable())
-        m_serverThread.join();
+    m_logSenderNotifier.notify_all();
 
-    // Stop logging thread
-    if (m_logThread.joinable())
-        m_logThread.join();
+    // stop Crow
+    appRef.stop();
+    // join the crow thread to main thread; essentially stops the thread from running again
+    if (m_crowThread.joinable())
+        m_crowThread.join();
+
+    // join the logSender thread
+    if (m_logSenderThread.joinable())
+        m_logSenderThread.join();
 }
 
-void Server::RegisterLogger(uint16_t id, const std::string &title)
+void Server::m_RegisterLogger(uint16_t id, const std::string &title)
 {
     // store logger title
     m_loggers[id] = title;
 
+    // no more processing is required
     std::cout << "Registered Logger: [" << std::to_string(id) << "] = " << title << "\n";
 }
 
-/// @brief Adds the message to a queue, from which messages are sent to. all client asynchronously
-/// @param message The formatted message
 void Server::m_Log(const std::string &message)
 {
     std::lock_guard<std::mutex> lock(m_logQueueMutex);
+
+    // add the message to queue and notify
     m_logQueue.push(message);
-    m_logCV.notify_one();
+    // wake only one thread as only one thread can send a message
+    m_logSenderNotifier.notify_one();
+    // `notify_one` notifies only one thread from all the threads waiting for the notification
 }
 
 std::string Server::encodeLogMessage(uint16_t logger_id,
