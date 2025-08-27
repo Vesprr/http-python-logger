@@ -108,6 +108,69 @@
             loggerNames[{{id}}] = "{{name}}";
             {{/m_loggers}}
 
+            class Message {
+                constructor(loggerId, lineNumber, funcName, fileName, logLevel, year, month, day, hour, minute, second, messageText) {
+                    this.loggerId = loggerId;
+                    this.lineNumber = lineNumber;
+                    this.funcName = funcName;
+                    this.fileName = fileName;
+                    this.logLevel = logLevel;
+
+                    this.timestamp = new Date(year, month - 1, day, hour, minute, second); // month is 0-indexed
+                    this.messageText = messageText;
+
+                    // compute colors at creation
+                    const colors = this.getColors();
+                    this.bgColor = colors.bg;
+                    this.textColor = colors.text;
+                    this.hoverColor = colors.hover;
+
+                    // use tailwind default color
+                    this.isTailwindColor = colors.isTailwindColor;
+                }
+
+                toString() {
+                    const ts = `[${this.timestamp.getFullYear()}-${String(this.timestamp.getMonth()+1).padStart(2,'0')}-${String(this.timestamp.getDate()).padStart(2,'0')} ` +
+                            `${String(this.timestamp.getHours()).padStart(2,'0')}:${String(this.timestamp.getMinutes()).padStart(2,'0')}:${String(this.timestamp.getSeconds()).padStart(2,'0')}]`;
+                    return `${ts} [${this.logLevel}] [${this.fileName}:${this.lineNumber} ${this.funcName}] ${this.messageText}`;
+                }
+
+                getColors() {
+                    const colors = {
+                        "META": {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
+                        "INFO": {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
+                        "WARN": {bg:"bg-yellow-200 dark:bg-yellow-900/40", text:"text-yellow-800 dark:text-yellow-200", hover:"hover:bg-yellow-300 dark:hover:bg-yellow-800/60"},
+                        "ERROR": {bg:"bg-red-200 dark:bg-red-900/40", text:"text-red-800 dark:text-red-200", hover:"hover:bg-red-300 dark:hover:bg-red-800/60"}
+                    };
+
+                    const key = this.logLevel.toString().replace(/\0/g, '').trim().toUpperCase();
+                    if (colors[key]) return {...colors[key], isTailwindColor: true};
+
+                    // Unknown log level → generate color
+                    this.isTailwindColor = false;
+
+                    const hash = Array.from(key).reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0);
+                    const hue = Math.abs(hash) % 360;
+
+                    const bgClass = `bg-[hsl(${hue},40%,90%)]`;
+                    const textClass = `text-[hsl(${hue},60%,30%)]`;
+                    const hoverClass = `hover:bg-[hsl(${hue},50%,80%)]`;
+
+                    const darkBgClass = `dark:bg-[hsl(${hue},40%,20%)]`;
+                    const darkTextClass = `dark:text-[hsl(${hue},60%,80%)]`;
+                    const darkHoverClass = `dark:hover:bg-[hsl(${hue},50%,30%)]`;
+
+
+                    return {bgClass, textClass, hoverClass,
+                            darkBgClass, darkTextClass, darkHoverClass,
+                            isTailwindColor: false};
+                }
+            }
+
+
+            const renderedMessages = []; // keeps objects {msgObj, element}
+
+
             /* --------------------- DOM --------------------- */
             const messages = document.getElementById("messages");
             const status = document.getElementById("status");
@@ -130,53 +193,108 @@
             };
 
             /* --------------------- Helpers --------------------- */
-            function addMessageToCache(id, msg) {
-                id = Number(id);
+            function addMetaMessage(text) {
+                const now = new Date();
+                const msgObj = new Message(
+                    65535,          // loggerId
+                    0,              // lineNumber
+                    "system",       // funcName
+                    "system",       // fileName
+                    "META",         // logLevel
+                    now.getFullYear(),
+                    now.getMonth() + 1,
+                    now.getDate(),
+                    now.getHours(),
+                    now.getMinutes(),
+                    now.getSeconds(),
+                    text
+                );
+                addMessageToCache(msgObj);
+            }
+
+            function addMessageToCache(msgObj) {
+                const id = msgObj.loggerId;
                 if (!messageCache[id]) messageCache[id] = [];
-                messageCache[id].push({id, msg});
-                if (messageCache[id].length > 200) messageCache[id].shift();
-                if (selectedLoggers.has(id)) renderMessage(id, msg);
-            }
 
-            function renderMessage(id, msg) {
-                const line = document.createElement("div");
-                const levelMatch = msg.match(/\[(INFO|WARN|ERROR|[A-Z]+)\]/);
-                const level = levelMatch ? levelMatch[1] : "INFO";
+                // binary insert within this logger
+                const arr = messageCache[id];
+                const ts = msgObj.timestamp.getTime();
 
-                const colors = {
-                    INFO: {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
-                    WARN: {bg:"bg-yellow-200 dark:bg-yellow-900/40", text:"text-yellow-800 dark:text-yellow-200", hover:"hover:bg-yellow-300 dark:hover:bg-yellow-800/60"},
-                    ERROR: {bg:"bg-red-200 dark:bg-red-900/40", text:"text-red-800 dark:text-red-200", hover:"hover:bg-red-300 dark:hover:bg-red-800/60"}
-                };
-
-                if (colors[level]) {
-                    const {bg, text, hover} = colors[level];
-                    line.className=`block px-2 py-1 cursor-default transition mx-0.5 ${bg} ${text} ${hover}`;
-                    line.textContent = msg;
-                } else {
-                    line.style.backgroundColor = "rgba(128,0,128,0.2)";
-                    line.style.color = "purple";
-                    line.style.padding = "0.25rem 0.5rem";
-                    line.style.margin = "0.125rem";
-                    line.style.cursor = "default";
-                    line.style.transition = "all 0.2s";
-                    line.textContent = msg;
+                let left = 0, right = arr.length - 1;
+                let insertIndex = arr.length;
+                while (left <= right) {
+                    const mid = Math.floor((left + right) / 2);
+                    const midTs = arr[mid].timestamp.getTime();
+                    if (ts > midTs || ts === midTs) {
+                        insertIndex = mid;
+                        right = mid - 1;
+                    } else {
+                        left = mid + 1;
+                    }
                 }
-                messages.prepend(line);
+                arr.splice(insertIndex, 0, msgObj);
+
+                if (arr.length > 200) arr.pop();
+
+                // render only if the logger is selected
+                if (selectedLoggers.has(id)) renderSelectedMessages();
+                updateStats();
             }
+
+            function renderMessage(msgObj) {
+                const line = document.createElement("div");
+
+                // use precomputed colors
+                if (msgObj.isTailwindColor) {
+                    line.className = `block px-2 py-1 cursor-default transition mx-0.5 ${msgObj.bgColor} ${msgObj.textColor} ${msgObj.hoverColor}`;
+                } else {
+                    line.className = `block px-2 py-1 cursor-default transition mx-0.5 ` +
+                        `${msgObj.getColors().bgClass} ${msgObj.getColors().textClass} ${msgObj.getColors().hoverClass} ` +
+                        `${msgObj.getColors().darkBgClass} ${msgObj.getColors().darkTextClass} ${msgObj.getColors().darkHoverClass} `;
+                }
+
+                line.textContent = msgObj.toString();
+                line.dataset.timestamp = msgObj.timestamp.getTime();
+
+                messages.appendChild(line);
+            }
+
+            function renderSelectedMessages() {
+                messages.innerHTML = "";
+                renderedMessages.length = 0;
+
+                // collect all messages from selected loggers
+                let allMessages = [];
+                selectedLoggers.forEach(id => {
+                    if (messageCache[id]) allMessages = allMessages.concat(messageCache[id]);
+                });
+
+                // sort by timestamp descending (newest first)
+                allMessages.sort((a, b) => b.timestamp - a.timestamp);
+
+                // render
+                allMessages.forEach(msgObj => renderMessage(msgObj));
+            }
+
 
             function updateStats() {
-                let total=0, localCount=0;
+                let total = 0, localCount = 0;
                 const allChip = loggerChips.querySelector('.chip[data-id="all"]');
                 const loggerChipsArray = Array.from(loggerChips.querySelectorAll(".chip")).filter(c=>c.dataset.id!=="all");
                 const selectedCount = loggerChipsArray.filter(c=>selectedLoggers.has(Number(c.dataset.id))).length;
 
-                for(const id of selectedLoggers){ localCount += messageCache[id]?.length||0; }
+                for (const id of selectedLoggers) {
+                    localCount += (messageCache[id]?.length || 0);
+                }
 
-                receivedLocal.textContent = selectedCount===loggerChipsArray.length ? `Received from [All]: ${localCount}` : `Received from [${Array.from(selectedLoggers).map(id=>loggerNames[id]||id).join(", ")}]: ${localCount}`;
-                for(const key in messageCache) total+=messageCache[key].length;
-                receivedTotal.textContent=`Received Total: ${total}`;
+                receivedLocal.textContent = selectedCount === loggerChipsArray.length
+                    ? `Received from [All]: ${localCount}`
+                    : `Received from [${Array.from(selectedLoggers).map(id => loggerNames[id] || id).join(", ")}]: ${localCount}`;
+
+                for (const key in messageCache) total += messageCache[key].length;
+                receivedTotal.textContent = `Received Total: ${total}`;
             }
+
 
             function updateChips() {
                 const allChip = loggerChips.querySelector('.chip[data-id="all"]');
@@ -209,51 +327,48 @@
             }
 
             /* --------------------- Chip selection --------------------- */
-            loggerChips.addEventListener("click", e=>{
+            loggerChips.addEventListener("click", e => {
                 const chip = e.target.closest(".chip");
-                if(!chip) return;
+                if (!chip) return;
                 const id = chip.dataset.id;
 
-                if(id==="all"){
-                    const allSelected = Array.from(loggerChips.querySelectorAll(".chip")).filter(c=>c.dataset.id!=="all").every(c=>selectedLoggers.has(Number(c.dataset.id)));
+                if (id === "all") {
+                    const allSelected = Array.from(loggerChips.querySelectorAll(".chip"))
+                        .filter(c => c.dataset.id !== "all")
+                        .every(c => selectedLoggers.has(Number(c.dataset.id)));
                     selectedLoggers.clear();
-                    if(!allSelected) loggerChips.querySelectorAll(".chip").forEach(c=>{if(c.dataset.id!=="all") selectedLoggers.add(Number(c.dataset.id))});
+                    if (!allSelected) loggerChips.querySelectorAll(".chip")
+                        .forEach(c => { if(c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id)); });
                 } else {
-                    const numId=Number(id);
-                    selectedLoggers.has(numId)?selectedLoggers.delete(numId):selectedLoggers.add(numId);
+                    const numId = Number(id);
+                    selectedLoggers.has(numId) ? selectedLoggers.delete(numId) : selectedLoggers.add(numId);
                 }
 
-                // Update styles
-                loggerChips.querySelectorAll(".chip").forEach(c=>{
-                    const cid=c.dataset.id;
-                    c.classList.remove("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white","border-4","border-blue-500","dark:border-blue-600");
-                    if(cid!=="all" && selectedLoggers.has(Number(cid))) c.classList.add("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
-                });
-
                 updateChips();
-
-                messages.innerHTML="";
-                for(const sid of selectedLoggers) (messageCache[sid]||[]).forEach(m=>renderMessage(m.id,m.msg));
+                renderSelectedMessages();
                 updateStats();
             });
 
+
+
             /* --------------------- Clear logs --------------------- */
-            clearBtn.onclick = ()=>{
-                messages.innerHTML="";
-                selectedLoggers.forEach(id=>messageCache[id]=[]);
+            clearBtn.onclick = () => {
+                messages.innerHTML = "";
+                renderedMessages.length = 0; // reset array
+                selectedLoggers.forEach(id => messageCache[id] = []);
                 updateStats();
             };
+
 
             /* --------------------- WebSocket --------------------- */
             function connectWebSocket(url){
                 if(ws && ws.readyState===WebSocket.OPEN){ ws.close(); return; }
                 ws=new WebSocket(url);
                 ws.binaryType="arraybuffer";
-                ws.onopen=()=>{ addMessageToCache(65535,"Connected"); status.textContent="Connected"; };
-                ws.onclose=()=>{ addMessageToCache(65535,"Closed"); status.textContent="Disconnected"; };
-                ws.onerror=()=>addMessageToCache(65535,"Error");
+                ws.onopen = () => { addMetaMessage("Connected"); status.textContent="Connected"; };
+                ws.onclose = () => { addMetaMessage("Closed"); status.textContent="Disconnected"; };
+                ws.onerror = () => addMetaMessage("Error");
                 ws.onmessage = e => {
-                    recvCount++;
                     if (e.data instanceof ArrayBuffer) {
                         const bytes = new Uint8Array(e.data);
 
@@ -263,51 +378,31 @@
                         //     .join(' ');
                         // console.log(hexString);
 
-                        if (bytes.length >= 23) { // minimum size check
-                            // 1. Logger ID (big-endian)
+                        if (bytes.length >= 23) {
                             const loggerId = (bytes[0] << 8) | bytes[1];
-
-                            // 2. Line number (big-endian)
                             const lineNumber = (bytes[2] << 8) | bytes[3];
-
-                            // 3. Function name length (big-endian)
                             const funcLen = (bytes[4] << 8) | bytes[5];
-
-                            // 4. File name length (big-endian)
                             const fileLen = (bytes[6] << 8) | bytes[7];
-
-                            // 5. Time
                             const year = (bytes[8] << 8) | bytes[9];
                             const month = bytes[10];
                             const day = bytes[11];
                             const hour = bytes[12];
                             const minute = bytes[13];
                             const second = bytes[14];
-                            const timestamp = `[${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')} ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:${String(second).padStart(2,'0')}]`;
+                            const logLevel = new TextDecoder().decode(bytes.slice(15, 23)).trim();
 
-                            // 6. Log level (up to 8 bytes)
-                            const logLevelBytes = bytes.slice(15, 23);
-                            const logLevel = new TextDecoder().decode(logLevelBytes).trim();
-
-                            // 7. Function Name
                             const funcStart = 23;
                             const funcEnd = funcStart + funcLen;
                             const funcName = new TextDecoder().decode(bytes.slice(funcStart, funcEnd));
 
-                            // 8. File Name
                             const fileStart = funcEnd;
                             const fileEnd = fileStart + fileLen;
                             const fileName = new TextDecoder().decode(bytes.slice(fileStart, fileEnd));
 
-                            // 9. Message
-                            const msgStart = fileEnd;
-                            const message = new TextDecoder().decode(bytes.slice(msgStart));
+                            const messageText = new TextDecoder().decode(bytes.slice(fileEnd));
 
-                            // Combine formatted log
-                            const formattedMsg = `${timestamp} [${logLevel}] ${fileName}:${lineNumber} ${funcName} ${message}`;
-
-                            // Add to cache & render
-                            addMessageToCache(loggerId, formattedMsg);
+                            const msgObj = new Message(loggerId, lineNumber, funcName, fileName, logLevel, year, month, day, hour, minute, second, messageText);
+                            addMessageToCache(msgObj);
                             updateStats();
                         }
                     }

@@ -201,19 +201,9 @@ std::string Server::encodeLogMessage(uint16_t logger_id,
     buffer[7] = static_cast<char>(file_len & 0xFF);
 
     // - ENCODING `time` 7
-    // std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-    std::tm t = {};
-    t.tm_year = 2025 - 1900; // tm_year = years since 1900
-    t.tm_mon = 8 - 1;        // tm_mon = 0-based month
-    t.tm_mday = 26;          // day of the month
-    t.tm_hour = 23;
-    t.tm_min = 30;
-    t.tm_sec = 5;
-
-    // 2. Convert tm to time_t
-    std::time_t tt = std::mktime(&t); // interprets t as local time
-    // std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-    std::tm *tm_ptr = std::localtime(&tt);
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+    std::tm *tm_ptr = std::localtime(&now_time_t);
     // YEAR
     // "+ 1900" since tm_year gives years since 1900 i.e for 2020 returns 120
     uint16_t year = static_cast<uint16_t>(tm_ptr->tm_year + 1900);
