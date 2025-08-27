@@ -137,7 +137,7 @@ std::string Server::encodeLogMessage(uint16_t logger_id,
     // next 2 bytes: length of func_name
     // next 2 bytes: length of file_name
     // next 8 bytes: level
-    // next N bytes: time
+    // next 8 bytes: time
     // next func_name bytes
     // next file_name bytes
     // next message bytes
@@ -151,8 +151,8 @@ std::string Server::encodeLogMessage(uint16_t logger_id,
     constexpr size_t FUNC_NAME_LEN_BYTES = 2;
     // 2 bytes to encode the "length" of `file_name`
     constexpr size_t FILE_NAME_LEN_BYTES = 2;
-    // 7 bytes to encode timestamp (year, month, day, hour, min, sec)
-    constexpr size_t TIME_BYTES = 7;
+    // 8 bytes to encode timestamp [year(2),month(1),day(1),hour(1),minute(1),milliseconds(2)]
+    constexpr size_t TIME_BYTES = 8;
     // 8 bytes/characters to encode `log_level`
     constexpr size_t LOG_LEVEL_LEN_BYTES = 8;
 
@@ -217,33 +217,38 @@ std::string Server::encodeLogMessage(uint16_t logger_id,
     buffer[12] = static_cast<char>(tm_ptr->tm_hour); // tm_hour returns [0 - 23]
     // MINUTE
     buffer[13] = static_cast<char>(tm_ptr->tm_min); // tm_min returns [0 - 59]
-    // SECONDS
-    buffer[14] = static_cast<char>(tm_ptr->tm_sec); // tm_sec returns [0 - 59]
+    // MILLISECONDS (not sending seconds but milliseconds only)
+    auto ms_since_min = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch() % std::chrono::minutes(1)
+    );
+    uint16_t ms = static_cast<uint16_t>(ms_since_min.count());
+    buffer[14] = static_cast<char>(ms >> 8);
+    buffer[15] = static_cast<char>(ms & 0xFF);
     // above static_cast<char> gets the least significant byte
     // and since the values from month and below can be stored in one byte
     // conversion to big-endian is unnecessary
 
     // - COPYING `logLevel` into the bufffer (LOG_LEVEL_LEN_BYTES)
-    // prev bytes 14 bytes are already occupied
-    memcpy(buffer.data() + 15,
+    // prev bytes 15 bytes are already occupied
+    memcpy(buffer.data() + 16,
            level.data(), level.size());
-    // buffer filled from index 15 to 15 + level.size()
+    // buffer filled from index 16 to 16 + level.size()
     // since memory is intialized to 0 on constructin buffer string
     // we do not need to worry about preinitializing value
 
     // - COPYING `func_name` (func_len)
-    // prev (14 + LOG_LEVEL_LEN_BYTES) bytes are already occupied
-    memcpy(buffer.data() + 15 + LOG_LEVEL_LEN_BYTES,
+    // prev (16 + LOG_LEVEL_LEN_BYTES) bytes are already occupied
+    memcpy(buffer.data() + 16 + LOG_LEVEL_LEN_BYTES,
            func_name.c_str(), func_len);
 
     // - COPYING `file_name`
-    // prev (14 + LOG_LEVEL_LEN_BYTES + func_len) bytes are already occupied
-    memcpy(buffer.data() + 15 + LOG_LEVEL_LEN_BYTES + func_len,
+    // prev (16 + LOG_LEVEL_LEN_BYTES + func_len) bytes are already occupied
+    memcpy(buffer.data() + 16 + LOG_LEVEL_LEN_BYTES + func_len,
            file_name.c_str(), file_len);
 
     // - COPYING `message` (file_len)
-    // prev (14 + LOG_LEVEL_LEN_BYTES + func_len + file_len) bytes are already occupied
-    memcpy(buffer.data() + 15 + LOG_LEVEL_LEN_BYTES + func_len + file_len,
+    // prev (16 + LOG_LEVEL_LEN_BYTES + func_len + file_len) bytes are already occupied
+    memcpy(buffer.data() + 16 + LOG_LEVEL_LEN_BYTES + func_len + file_len,
            message.c_str(), message_len);
 
     return buffer;

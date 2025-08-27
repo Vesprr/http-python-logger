@@ -70,7 +70,7 @@ public:
     ///
     /// - Next 2 bytes are "Length of File Name String" (in big-endian format)
     ///
-    /// - Next 7 bytes are "Time" [year(2),month(1),day(1),hour(1),minute(1),seconds(1)]
+    /// - Next 8 bytes are "Time" [year(2),month(1),day(1),hour(1),minute(1),milliseconds(2)]
     ///
     /// - Next 8 bytes are "Log Level"
     ///
