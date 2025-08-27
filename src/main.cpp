@@ -19,22 +19,33 @@ int main()
 
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
+    auto start = std::chrono::high_resolution_clock::now().time_since_epoch();
+
     // Logging loop in main thread
-    for (unsigned int i = 1; i <= 100; i++)
+    for (unsigned int i = 1; i <= 1000; i++)
     {
-        LOG_INFO(loggerA, "Message from Logger A" + std::to_string(i));
-        LOG_WARN(loggerB, "Message from Logger B" + std::to_string(i));
-        LOG_ERROR(loggerC, "Message from Logger C" + std::to_string(i));
+        LOG_INFO(loggerA, "(BA) Message from Logger A " + std::to_string(i));
+        LOG_WARN(loggerB, "(BA) Message from Logger B " + std::to_string(i));
+        LOG_ERROR(loggerC, "(BA) Message from Logger C " + std::to_string(i));
+        LOG_CUSTOM(loggerD, "(BA) Message from Logger D " + std::to_string(i), "CUSTOM1");
+        LOG_CUSTOM(loggerE, "(BA) Message from Logger E " + std::to_string(i), "CUSTOM2");
 
-        LOG_CUSTOM(loggerD, "Some Custom Message that is mildly long", "abcdefghghijkl");
-        LOG_CUSTOM(loggerD, "Another Custom Message from the same logger That is extremely long and may not fit into the width of the web client log terminal.", "abcdefghghqwewqasfdasdf");
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-        LOG_CUSTOM(loggerE, "A message with another custom level to test color, This one is only shorter than 8 characters.", "CUSTOM");
+        LOG_INFO(loggerA, "(BB) Message from Logger A " + std::to_string(i));
+        LOG_WARN(loggerB, "(BB) Message from Logger B " + std::to_string(i));
+        LOG_ERROR(loggerC, "(BB) Message from Logger C " + std::to_string(i));
+        LOG_CUSTOM(loggerD, "(BB) Message from Logger D " + std::to_string(i), "CUSTOM1");
+        LOG_CUSTOM(loggerE, "(BB) Message from Logger E " + std::to_string(i), "CUSTOM2");
+        
 
         std::cout << "Logs sent; i = " << i << "\n";
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+
+    auto end = std::chrono::high_resolution_clock::now().time_since_epoch();
+    std::cout << "Logging took " << static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) << "ms \n";
 
     std::cin.get();
 }

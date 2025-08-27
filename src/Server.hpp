@@ -17,6 +17,7 @@ class Server
 {
 private:
     uint16_t m_port;
+    uint16_t m_refreshIntervalMs;
     std::unordered_map<uint16_t, std::string> m_loggers;
 
     // CROW WEBSOCKETS
@@ -47,7 +48,7 @@ private:
 
 public:
     Server() = delete;
-    Server(uint16_t port);
+    Server(uint16_t port, uint16_t refreshIntervalMs = 50);
 
     ~Server();
 

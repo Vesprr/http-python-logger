@@ -36,13 +36,13 @@
             <div class="flex items-center space-x-2">
                 <button
                     id="themeToggle"
-                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600"
+                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
                 >
                     Light
                 </button>
                 <button
                     id="clearBtn"
-                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600"
+                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
                 >
                     Clear Logs
                 </button>
@@ -86,9 +86,40 @@
         <div
             class="p-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400"
         >
-            <div class="flex flex-row gap-2">
-                <div id="receivedLocal">Received from [All]: 0</div>
-                <div id="receivedTotal">Received Total: 0</div>
+            <div class="flex flex-row gap-2 items-center">
+                <div
+                    id="paginationControls"
+                    class="px-1 py-1 rounded bg-zinc-200 dark:bg-zinc-700 flex flex-row"
+                >
+                    <button
+                        id="prevPage"
+                        class="px-1.5 rounded hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
+                    >
+                        &larr;
+                    </button>
+                    <span id="pageInfo" class="block px-1 min-w-16 text-center"
+                        >Page 1 / 1</span
+                    >
+                    <button
+                        id="nextPage"
+                        class="px-1.5 rounded hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
+                    >
+                        &rarr;
+                    </button>
+                </div>
+
+                <div
+                    id="receivedLocal"
+                    class="px-1.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700"
+                >
+                    Received from [All]: 0
+                </div>
+                <div
+                    id="receivedTotal"
+                    class="px-1.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700"
+                >
+                    Received Total: 0
+                </div>
             </div>
         </div>
 
@@ -99,33 +130,45 @@
         ></main>
 
         <script>
-            /* --------------------- State --------------------- */
+            /* ============================================================
+               Constants & Global State
+            ============================================================ */
+            const PAGE_SIZE = 200;
             let ws;
-            const MAX_DOM_MESSAGES = 500;
+            let currentPage = 0;
+            let totalPages = 0;
+
             const selectedLoggers = new Set();
             const messageCache = {};
-            const loggerNames = {65535: "Meta"};
+            const loggerNames = { 65535: "Meta" };
+
+            let mergedCache = [];   // global merged view
+            let messageQueue = [];  // batch insert queue
+
+            /* logger names injected from backend */
             {{#m_loggers}}
             loggerNames[{{id}}] = "{{name}}";
-            {{/m_loggers}};
+            {{/m_loggers}}
 
+            /* ============================================================
+               Message Class
+            ============================================================ */
             class Message {
-                constructor(loggerId, lineNumber, funcName, fileName, logLevel, year, month, day, hour, minute, msSinceMinute, messageText) {
+                constructor(loggerId, lineNumber, funcName, fileName, logLevel,
+                            year, month, day, hour, minute, msSinceMinute, messageText) {
+
                     this.loggerId = loggerId;
                     this.lineNumber = lineNumber;
                     this.funcName = funcName;
                     this.fileName = fileName;
                     this.logLevel = logLevel;
 
-                    // Break ms offset into seconds + leftover ms
                     const seconds = Math.floor(msSinceMinute / 1000);
                     const milliseconds = msSinceMinute % 1000;
-
-                    // Construct full Date
                     this.timestamp = new Date(year, month - 1, day, hour, minute, seconds, milliseconds);
+
                     this.messageText = messageText;
 
-                    // Precompute Tailwind classes
                     const colors = this.computeColors();
                     this.bgClass = colors.bgClass;
                     this.textClass = colors.textClass;
@@ -134,23 +177,23 @@
 
                 toString() {
                     const ts = `[${this.timestamp.getFullYear()}-${String(this.timestamp.getMonth()+1).padStart(2,'0')}-${String(this.timestamp.getDate()).padStart(2,'0')} ` +
-                                `${String(this.timestamp.getHours()).padStart(2,'0')}:${String(this.timestamp.getMinutes()).padStart(2,'0')}:${String(this.timestamp.getSeconds()+this.timestamp.getMilliseconds()).padStart(4,'0')}]`;
+                               `${String(this.timestamp.getHours()).padStart(2,'0')}:${String(this.timestamp.getMinutes()).padStart(2,'0')}:${String(this.timestamp.getSeconds()).padStart(2,'0')}]`;
                     return `${ts} [${this.logLevel}] [${this.fileName}:${this.lineNumber} ${this.funcName}] ${this.messageText}`;
                 }
 
                 computeColors() {
-                    const colors = {
-                        "META": {bgClass:"bg-green-200 dark:bg-green-900/40", textClass:"text-green-800 dark:text-green-200", hoverClass:"hover:bg-green-300 dark:hover:bg-green-800/60"},
-                        "INFO": {bgClass:"bg-green-200 dark:bg-green-900/40", textClass:"text-green-800 dark:text-green-200", hoverClass:"hover:bg-green-300 dark:hover:bg-green-800/60"},
-                        "WARN": {bgClass:"bg-yellow-200 dark:bg-yellow-900/40", textClass:"text-yellow-800 dark:text-yellow-200", hoverClass:"hover:bg-yellow-300 dark:hover:bg-yellow-800/60"},
-                        "ERROR": {bgClass:"bg-red-200 dark:bg-red-900/40", textClass:"text-red-800 dark:text-red-200", hoverClass:"hover:bg-red-300 dark:hover:bg-red-800/60"}
+                    const base = {
+                        "META":  {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
+                        "INFO":  {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
+                        "WARN":  {bg:"bg-yellow-200 dark:bg-yellow-900/40", text:"text-yellow-800 dark:text-yellow-200", hover:"hover:bg-yellow-300 dark:hover:bg-yellow-800/60"},
+                        "ERROR": {bg:"bg-red-200 dark:bg-red-900/40", text:"text-red-800 dark:text-red-200", hover:"hover:bg-red-300 dark:hover:bg-red-800/60"}
                     };
-                    const key = this.logLevel.toString().replace(/\0/g,'').trim().toUpperCase();
-                    if(colors[key]) return colors[key];
 
-                    // Unknown log level → generate HSL color
-                    const hash = Array.from(key).reduce((h,c)=>c.charCodeAt(0)+((h<<5)-h),0);
-                    const hue = Math.abs(hash)%360;
+                    const key = this.logLevel.toString().replace(/\0/g,'').trim().toUpperCase();
+                    if (base[key]) return {bgClass: base[key].bg, textClass: base[key].text, hoverClass: base[key].hover};
+
+                    const hash = Array.from(key).reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0);
+                    const hue = Math.abs(hash) % 360;
                     return {
                         bgClass: `bg-[hsl(${hue},40%,90%)] dark:bg-[hsl(${hue},40%,20%)]`,
                         textClass: `text-[hsl(${hue},60%,30%)] dark:text-[hsl(${hue},60%,80%)]`,
@@ -159,209 +202,261 @@
                 }
             }
 
-            /* --------------------- DOM --------------------- */
-            const messages = document.getElementById("messages");
-            const status = document.getElementById("status");
-            const receivedLocal = document.getElementById("receivedLocal");
-            const receivedTotal = document.getElementById("receivedTotal");
-            const clearBtn = document.getElementById("clearBtn");
-            const themeToggle = document.getElementById("themeToggle");
-            const loggerChips = document.getElementById("loggerChips");
+            /* ============================================================
+               DOM References
+            ============================================================ */
+            const messages     = document.getElementById("messages");
+            const status       = document.getElementById("status");
+            const receivedLocal= document.getElementById("receivedLocal");
+            const receivedTotal= document.getElementById("receivedTotal");
+            const clearBtn     = document.getElementById("clearBtn");
+            const themeToggle  = document.getElementById("themeToggle");
+            const loggerChips  = document.getElementById("loggerChips");
+            const prevBtn      = document.getElementById("prevPage");
+            const nextBtn      = document.getElementById("nextPage");
+            const pageInfo     = document.getElementById("pageInfo");
 
-            /* --------------------- Theme --------------------- */
-            if (localStorage.theme === "light") document.documentElement.classList.remove("dark"), themeToggle.textContent="Dark";
-            else document.documentElement.classList.add("dark"), themeToggle.textContent="Light";
-
-            themeToggle.onclick = () => {
-                if(document.documentElement.classList.contains("dark")) {
+            /* ============================================================
+               Theme Handling
+            ============================================================ */
+            function initTheme() {
+                if (localStorage.theme === "light") {
                     document.documentElement.classList.remove("dark");
-                    localStorage.theme="light";
-                    themeToggle.textContent="Dark";
+                    themeToggle.textContent = "Dark";
                 } else {
                     document.documentElement.classList.add("dark");
-                    localStorage.theme="dark";
-                    themeToggle.textContent="Light";
+                    themeToggle.textContent = "Light";
+                }
+            }
+            themeToggle.onclick = () => {
+                document.documentElement.classList.toggle("dark");
+                if (document.documentElement.classList.contains("dark")) {
+                    localStorage.theme = "dark"; themeToggle.textContent = "Light";
+                } else {
+                    localStorage.theme = "light"; themeToggle.textContent = "Dark";
                 }
             };
 
-            /* --------------------- Helpers --------------------- */
-            function addMetaMessage(text){
+            /* ============================================================
+               Cache Helpers
+            ============================================================ */
+            function rebuildMergedCache() {
+                mergedCache = [];
+                selectedLoggers.forEach(id => { if (messageCache[id]) mergedCache.push(...messageCache[id]); });
+                mergedCache.sort((a, b) => b.timestamp - a.timestamp);
+            }
+            function insertIntoMerged(msgObj) {
+                if (!selectedLoggers.has(msgObj.loggerId)) return;
+                let lo = 0, hi = mergedCache.length;
+                while (lo < hi) {
+                    let mid = (lo + hi) >>> 1;
+                    if (mergedCache[mid].timestamp >= msgObj.timestamp) lo = mid + 1;
+                    else hi = mid;
+                }
+                mergedCache.splice(lo, 0, msgObj);
+            }
+
+            /* ============================================================
+               Rendering
+            ============================================================ */
+            function updatePaginationInfo(totalCount) {
+                totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+                currentPage = Math.max(0, Math.min(currentPage, totalPages - 1));
+
+                pageInfo.textContent = `Page ${currentPage + 1} / ${totalPages}`;
+                prevBtn.disabled = currentPage === 0;
+                nextBtn.disabled = currentPage === totalPages - 1;
+            }
+            function renderPageFromMerged() {
+                messages.innerHTML = "";
+                const start = currentPage * PAGE_SIZE;
+                const slice = mergedCache.slice(start, start + PAGE_SIZE);
+
+                const frag = document.createDocumentFragment();
+                slice.forEach(msgObj => {
+                    const el = document.createElement("div");
+                    el.className = `block px-2 py-1 cursor-default transition mx-0.5 ${msgObj.bgClass} ${msgObj.textClass} ${msgObj.hoverClass}`;
+                    el.textContent = msgObj.toString();
+                    frag.appendChild(el);
+                });
+                messages.appendChild(frag);
+            }
+            function renderSelectedMessages() {
+                updatePaginationInfo(mergedCache.length);
+                renderPageFromMerged();
+            }
+
+            /* ============================================================
+               Message Handling
+            ============================================================ */
+            function addMessage(msgObj) {
+                const id = msgObj.loggerId;
+                if (!messageCache[id]) messageCache[id] = [];
+
+                messageCache[id].unshift(msgObj);
+                if (messageCache[id].length > 10000) messageCache[id].pop();
+
+                insertIntoMerged(msgObj);
+            }
+            function addMetaMessage(text) {
                 const now = new Date();
-                const msgObj = new Message(65535,0,"system","system","META",
-                                           now.getFullYear(),now.getMonth()+1,now.getDate(),
-                                           now.getHours(),now.getMinutes(),now.getSeconds()+now.getMilliseconds(),text);
+                const msgObj = new Message(65535, 0, "system", "system", "META",
+                                           now.getFullYear(), now.getMonth() + 1, now.getDate(),
+                                           now.getHours(), now.getMinutes(),
+                                           now.getSeconds() + now.getMilliseconds(), text);
                 addMessage(msgObj);
             }
 
-            function addMessage(msgObj){
-                const id = msgObj.loggerId;
-                if(!messageCache[id]) messageCache[id]=[];
-                messageCache[id].unshift(msgObj);
-                if(messageCache[id].length>200) messageCache[id].pop();
+            /* ============================================================
+               Stats
+            ============================================================ */
+            function updateStats() {
+                let total = 0, localCount = 0;
+                const loggerChipsArray = Array.from(loggerChips.querySelectorAll(".chip")).filter(c => c.dataset.id !== "all");
+                const selectedCount = loggerChipsArray.filter(c => selectedLoggers.has(Number(c.dataset.id))).length;
 
-                if(selectedLoggers.has(id)){
-                    renderMessage(msgObj);
-                    trimMessages();
-                }
-                updateStats();
-            }
-
-            function renderMessage(msgObj){
-                const line = document.createElement("div");
-                line.className = `block px-2 py-1 cursor-default transition mx-0.5 leading-6 ${msgObj.bgClass} ${msgObj.textClass} ${msgObj.hoverClass}`;
-                line.textContent = msgObj.toString();
-                messages.prepend(line); // prepend newest at top
-            }
-
-            function trimMessages(){
-                while(messages.children.length > MAX_DOM_MESSAGES){
-                    messages.removeChild(messages.lastChild);
-                }
-            }
-
-            function updateStats(){
-                let total=0, localCount=0;
-                const loggerChipsArray = Array.from(loggerChips.querySelectorAll(".chip")).filter(c=>c.dataset.id!=="all");
-                const selectedCount = loggerChipsArray.filter(c=>selectedLoggers.has(Number(c.dataset.id))).length;
-
-                for(const id of selectedLoggers) localCount += (messageCache[id]?.length || 0);
-                receivedLocal.textContent = selectedCount===loggerChipsArray.length
+                for (const id of selectedLoggers) localCount += (messageCache[id]?.length || 0);
+                receivedLocal.textContent = selectedCount === loggerChipsArray.length
                     ? `Received from [All]: ${localCount}`
-                    : `Received from [${Array.from(selectedLoggers).map(id=>loggerNames[id]||id).join(", ")}]: ${localCount}`;
+                    : `Received from [${Array.from(selectedLoggers).map(id => loggerNames[id] || id).join(", ")}] : ${localCount}`;
 
-                for(const key in messageCache) total += messageCache[key].length;
+                for (const key in messageCache) total += messageCache[key].length;
                 receivedTotal.textContent = `Received Total: ${total}`;
             }
 
-            /* --------------------- Chips --------------------- */
-            function updateChips(){
+            /* ============================================================
+               Chips Handling
+            ============================================================ */
+            function updateChips() {
                 const allChip = loggerChips.querySelector('.chip[data-id="all"]');
-                const loggerChipsArray = Array.from(loggerChips.querySelectorAll(".chip")).filter(c=>c.dataset.id!=="all");
+                const loggerChipsArray = Array.from(loggerChips.querySelectorAll(".chip")).filter(c => c.dataset.id !== "all");
                 const totalCount = loggerChipsArray.length;
-                const selectedCount = loggerChipsArray.filter(c=>selectedLoggers.has(Number(c.dataset.id))).length;
+                const selectedCount = loggerChipsArray.filter(c => selectedLoggers.has(Number(c.dataset.id))).length;
 
-                allChip.className="chip px-3 py-1 rounded-full border text-sm border-zinc-400 dark:border-zinc-600";
-                if(selectedCount===totalCount) allChip.classList.add("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
-                else if(selectedCount>0) allChip.classList.add("border-blue-500","dark:border-blue-600");
+                allChip.className = "chip px-3 py-1 rounded-full border text-sm border-zinc-400 dark:border-zinc-600";
+                if (selectedCount === totalCount) allChip.classList.add("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
+                else if (selectedCount > 0) allChip.classList.add("border-blue-500","dark:border-blue-600");
 
                 loggerChipsArray.forEach(c => {
                     const cid = Number(c.dataset.id);
-                    c.classList.remove("bg-blue-500", "text-white", "dark:bg-blue-600", "dark:text-white");
-                    if(selectedLoggers.has(cid)) c.classList.add("bg-blue-500", "text-white", "dark:bg-blue-600", "dark:text-white");
+                    c.classList.remove("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
+                    if (selectedLoggers.has(cid)) c.classList.add("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
                 });
             }
-
-            loggerChips.addEventListener("click", e=>{
+            loggerChips.addEventListener("click", e => {
                 const chip = e.target.closest(".chip");
-                if(!chip) return;
+                if (!chip) return;
                 const id = chip.dataset.id;
 
-                if(id==="all"){
+                if (id === "all") {
                     const allSelected = Array.from(loggerChips.querySelectorAll(".chip"))
-                        .filter(c=>c.dataset.id!=="all")
-                        .every(c=>selectedLoggers.has(Number(c.dataset.id)));
+                        .filter(c => c.dataset.id !== "all")
+                        .every(c => selectedLoggers.has(Number(c.dataset.id)));
                     selectedLoggers.clear();
-                    if(!allSelected) loggerChips.querySelectorAll(".chip")
-                        .forEach(c=>{if(c.dataset.id!=="all") selectedLoggers.add(Number(c.dataset.id));});
+                    if (!allSelected) loggerChips.querySelectorAll(".chip").forEach(c => { if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id)); });
                 } else {
                     const numId = Number(id);
-                    selectedLoggers.has(numId)?selectedLoggers.delete(numId):selectedLoggers.add(numId);
+                    selectedLoggers.has(numId) ? selectedLoggers.delete(numId) : selectedLoggers.add(numId);
                 }
 
                 updateChips();
+                currentPage = 0;
+                rebuildMergedCache();
                 renderSelectedMessages();
                 updateStats();
             });
 
-            /* --------------------- Clear logs --------------------- */
+            /* ============================================================
+               Pagination Controls
+            ============================================================ */
+            prevBtn.addEventListener("click", () => { if (currentPage > 0) { currentPage--; renderSelectedMessages(); } });
+            nextBtn.addEventListener("click", () => { if (currentPage < totalPages - 1) { currentPage++; renderSelectedMessages(); } });
+
+            /* ============================================================
+               Clear
+            ============================================================ */
             clearBtn.onclick = () => {
-                messages.innerHTML = "";
-                selectedLoggers.forEach(id => messageCache[id]=[]);
+                selectedLoggers.forEach(id => messageCache[id] = []);
+                currentPage = 0;
+                renderSelectedMessages();
                 updateStats();
             };
 
-            /* --------------------- WebSocket --------------------- */
-            let messageQueue=[];
-            setInterval(()=>{
-                if(messageQueue.length>0){
-                    messageQueue.forEach(addMessage);
-                    messageQueue=[];
-                }
-            }, 50);
+            /* ============================================================
+               WebSocket Handling (batched)
+            ============================================================ */
+            function connectWebSocket(url) {
+                if (ws && ws.readyState === WebSocket.OPEN) { ws.close(); return; }
+                ws = new WebSocket(url);
+                ws.binaryType = "arraybuffer";
 
-            function connectWebSocket(url){
-                if(ws && ws.readyState===WebSocket.OPEN){ ws.close(); return; }
-                ws=new WebSocket(url);
-                ws.binaryType="arraybuffer";
+                ws.onopen   = () => { addMetaMessage("Connected"); status.textContent = "Connected"; };
+                ws.onclose  = () => { addMetaMessage("Closed"); status.textContent = "Disconnected"; };
+                ws.onerror  = () => addMetaMessage("Error");
+                ws.onmessage = e => {
+                    if (!(e.data instanceof ArrayBuffer)) return;
+                    const bytes = new Uint8Array(e.data);
+                    if (bytes.length < 23) return;
 
-                ws.onopen = ()=>{ addMetaMessage("Connected"); status.textContent="Connected"; };
-                ws.onclose = ()=>{ addMetaMessage("Closed"); status.textContent="Disconnected"; };
-                ws.onerror = ()=>addMetaMessage("Error");
-                ws.onmessage = e=>{
-                    if(e.data instanceof ArrayBuffer){
-                        const bytes = new Uint8Array(e.data);
-                        if(bytes.length>=23){
-                            const loggerId = (bytes[0]<<8)|bytes[1];
-                            const lineNumber = (bytes[2]<<8)|bytes[3];
-                            const funcLen = (bytes[4]<<8)|bytes[5];
-                            const fileLen = (bytes[6]<<8)|bytes[7];
-                            const year = (bytes[8]<<8)|bytes[9];
-                            const month = bytes[10];
-                            const day = bytes[11];
-                            const hour = bytes[12];
-                            const minute = bytes[13];
-                            const milliseconds = (bytes[14]<<8)|bytes[15];
-                            const logLevel = new TextDecoder().decode(bytes.slice(16,24)).trim();
+                    const loggerId = (bytes[0] << 8) | bytes[1];
+                    const lineNumber = (bytes[2] << 8) | bytes[3];
+                    const funcLen = (bytes[4] << 8) | bytes[5];
+                    const fileLen = (bytes[6] << 8) | bytes[7];
+                    const year = (bytes[8] << 8) | bytes[9];
+                    const month = bytes[10];
+                    const day = bytes[11];
+                    const hour = bytes[12];
+                    const minute = bytes[13];
+                    const milliseconds = (bytes[14] << 8) | bytes[15];
+                    const logLevel = new TextDecoder().decode(bytes.slice(16, 24)).trim();
 
-                            const funcStart = 24;
-                            const funcEnd = funcStart+funcLen;
-                            const funcName = new TextDecoder().decode(bytes.slice(funcStart,funcEnd));
+                    const funcStart = 24;
+                    const funcEnd = funcStart + funcLen;
+                    const funcName = new TextDecoder().decode(bytes.slice(funcStart, funcEnd));
 
-                            const fileStart = funcEnd;
-                            const fileEnd = fileStart+fileLen;
-                            const fileName = new TextDecoder().decode(bytes.slice(fileStart,fileEnd));
+                    const fileStart = funcEnd;
+                    const fileEnd = fileStart + fileLen;
+                    const fileName = new TextDecoder().decode(bytes.slice(fileStart, fileEnd));
 
-                            const messageText = new TextDecoder().decode(bytes.slice(fileEnd));
-                            const msgObj = new Message(loggerId,lineNumber,funcName,fileName,logLevel,year,month,day,hour,minute,milliseconds,messageText);
-                            messageQueue.push(msgObj);
-                        }
-                    }
+                    const messageText = new TextDecoder().decode(bytes.slice(fileEnd));
+                    const msgObj = new Message(loggerId, lineNumber, funcName, fileName, logLevel,
+                                               year, month, day, hour, minute, milliseconds, messageText);
+                    messageQueue.push(msgObj);
                 };
             }
 
-            /* --------------------- Init --------------------- */
-            function renderSelectedMessages(){
-                messages.innerHTML="";
-                const fragment = document.createDocumentFragment();
-                let allMessages=[];
-                selectedLoggers.forEach(id=>{if(messageCache[id]) allMessages=allMessages.concat(messageCache[id]);});
-                allMessages.sort((a,b)=>b.timestamp-a.timestamp);
-                allMessages.forEach(msgObj=>{
-                    const line=document.createElement("div");
-                    line.className=`block px-2 py-1 cursor-default transition mx-0.5 ${msgObj.bgClass} ${msgObj.textClass} ${msgObj.hoverClass}`;
-                    line.textContent=msgObj.toString();
-                    fragment.appendChild(line);
-                });
-                messages.appendChild(fragment);
+            /* ============================================================
+               Init
+            ============================================================ */
+            function sortChips() {
+                const chips = Array.from(loggerChips.querySelectorAll(".chip"));
+                const allChip = chips.find(c => c.dataset.id === "all");
+                const metaChip = chips.find(c => c.dataset.id === "65535");
+                const loggerArray = chips.filter(c => c !== allChip && c !== metaChip).sort((a, b) => Number(a.dataset.id) - Number(b.dataset.id));
+
+                loggerChips.innerHTML = "";
+                if (allChip) loggerChips.appendChild(allChip);
+                loggerArray.forEach(c => loggerChips.appendChild(c));
+                if (metaChip) loggerChips.appendChild(metaChip);
             }
 
-            function sortChips(){
-                const chips=Array.from(loggerChips.querySelectorAll(".chip"));
-                const allChip=chips.find(c=>c.dataset.id==="all");
-                const metaChip=chips.find(c=>c.dataset.id==="65535");
-                const loggerArray=chips.filter(c=>c!==allChip && c!==metaChip).sort((a,b)=>Number(a.dataset.id)-Number(b.dataset.id));
-                loggerChips.innerHTML="";
-                if(allChip) loggerChips.appendChild(allChip);
-                loggerArray.forEach(c=>loggerChips.appendChild(c));
-                if(metaChip) loggerChips.appendChild(metaChip);
-            }
-
+            initTheme();
             sortChips();
-            // select all by default
-            loggerChips.querySelectorAll(".chip").forEach(c=>{if(c.dataset.id!=="all") selectedLoggers.add(Number(c.dataset.id));});
+            loggerChips.querySelectorAll(".chip").forEach(c => { if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id)); });
             updateChips();
             updateStats();
+            renderSelectedMessages();
             connectWebSocket(`ws://localhost:{{port}}/ws`);
+
+            /* Batch flush every given ms from cpp */
+            setInterval(() => {
+                if (messageQueue.length === 0) return;
+                const q = messageQueue.splice(0, messageQueue.length);
+                q.forEach(addMessage);
+                updateStats();
+                if (currentPage === 0) renderSelectedMessages();
+                else updatePaginationInfo(mergedCache.length);
+            }, {{refreshInterval}});
         </script>
     </body>
 </html>

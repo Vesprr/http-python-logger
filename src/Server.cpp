@@ -1,6 +1,7 @@
 #include "Server.hpp"
 
-Server::Server(uint16_t port) : m_port(port) { m_Initialize(); }
+Server::Server(uint16_t port, uint16_t refreshIntervalMs = 50)
+    : m_port(port), m_refreshIntervalMs(refreshIntervalMs) { m_Initialize(); }
 
 Server::~Server() { Stop(); }
 
@@ -21,6 +22,7 @@ void Server::m_Initialize()
         }
 
         ctx["port"] = m_port;
+        ctx["refreshInterval"] = m_refreshIntervalMs;
 
         auto page = crow::mustache::load("server.html");
         return page.render(ctx);
@@ -219,8 +221,7 @@ std::string Server::encodeLogMessage(uint16_t logger_id,
     buffer[13] = static_cast<char>(tm_ptr->tm_min); // tm_min returns [0 - 59]
     // MILLISECONDS (not sending seconds but milliseconds only)
     auto ms_since_min = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch() % std::chrono::minutes(1)
-    );
+        now.time_since_epoch() % std::chrono::minutes(1));
     uint16_t ms = static_cast<uint16_t>(ms_since_min.count());
     buffer[14] = static_cast<char>(ms >> 8);
     buffer[15] = static_cast<char>(ms & 0xFF);
