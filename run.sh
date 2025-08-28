@@ -26,7 +26,11 @@ clear
 
 set -e
 
+# embeds the included files
+./embed_build.sh
+
 mkdir -p build
+
 
 echo -e "${YELLOW}Generate build files CMake ... ${RESET}"
 cmake -B build -S . \

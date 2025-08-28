@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include "embeds.hpp"
 
 Server::Server(uint16_t port, uint16_t refreshIntervalMs)
     : m_port(port), m_refreshIntervalMs(refreshIntervalMs)
@@ -21,7 +22,8 @@ Server::Server(uint16_t port, uint16_t refreshIntervalMs)
         ctx["port"] = m_port;
         ctx["refreshInterval"] = m_refreshIntervalMs;
 
-        auto page = crow::mustache::load("server.html");
+        // auto page = crow::mustache::load("server.html");
+        crow::mustache::template_t page(Embedded::server_html_str);
         return page.render(ctx);
     });
 
