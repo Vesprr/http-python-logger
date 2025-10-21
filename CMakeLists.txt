@@ -87,8 +87,3 @@ target_link_libraries(
 install(TARGETS main
     RUNTIME DESTINATION bin
 )
-
-# Install assets folder as 'templates' next to binary
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets/
-    DESTINATION bin/
-)

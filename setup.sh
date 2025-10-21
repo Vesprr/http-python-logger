@@ -32,6 +32,7 @@ fi
 
 # install packages (for current template)
 ./external/vcpkg/vcpkg install fmt
+./external/vcpkg/vcpkg install crow
 
 # setup cmake preset; REMOVE after setting up preset
 cmake --preset=default
