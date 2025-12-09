@@ -4,7 +4,7 @@ Logger::Logger(Server &server, uint16_t logger_id, const std::string &title)
     : m_server(server), m_logger_id(logger_id)
 {
     // Automatically register the Logger into the Server
-    m_server.m_RegisterLogger(logger_id, title);
+    m_server.f_RegisterLogger(logger_id, title);
 }
 
 void Logger::Log(uint16_t line,
@@ -26,5 +26,5 @@ void Logger::Log(uint16_t line,
     std::string filename = (pos == std::string::npos) ? file_path : file_path.substr(pos + 1);
 
     // send tha parameters to Server::encodeLogMessage to encode message
-    m_server.m_Log(Server::encodeLogMessage(m_logger_id, line, func, filename, level_formatted, message));
+    m_server.f_Log(Server::encodeLogMessage(m_logger_id, line, func, filename, level_formatted, message));
 }

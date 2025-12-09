@@ -1,135 +1,254 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-    <head>
-        <meta charset="utf-8" />
-        <title>Logger Dashboard</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = { darkMode: "class" };
-        </script>
-        <style>
-            body {
-                font-family: ui-sans-serif, system-ui, -apple-system,
-                    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-                    Arial, "Noto Sans", sans-serif;
-            }
-            .terminal {
-                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco,
-                    Consolas, "Liberation Mono", "Courier New", monospace;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-            }
-            .chip {
-                cursor: pointer;
-                transition: all 0.2s;
-            }
-        </style>
-    </head>
-    <body
-        class="bg-zinc-50 dark:bg-zinc-900 h-screen flex flex-col text-zinc-800 dark:text-zinc-200"
-    >
-        <!-- Header -->
-        <header
-            class="p-4 bg-zinc-200 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between"
-        >
-            <h1 class="font-semibold text-lg">Logger Dashboard</h1>
-            <div class="flex items-center space-x-2">
-                <button
-                    id="themeToggle"
-                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
-                >
-                    Light
-                </button>
-                <button
-                    id="clearBtn"
-                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
-                >
-                    Clear Logs
-                </button>
-                <div
-                    id="status"
-                    class="px-3 py-1 rounded text-sm bg-zinc-300 dark:bg-zinc-700"
-                >
-                    Disconnected
-                </div>
-            </div>
-        </header>
-
-        <!-- Logger chips -->
-        <div
-            id="loggerChips"
-            class="p-3 bg-zinc-100 dark:bg-zinc-800 flex flex-wrap gap-2 border-b border-zinc-300 dark:border-zinc-700"
-        >
-            <div
-                class="chip px-3 py-1 rounded-full border border-zinc-400 dark:border-zinc-600 text-sm"
-                data-id="all"
-            >
-                All
-            </div>
-            <div
-                class="chip px-3 py-1 rounded-full border border-zinc-400 dark:border-zinc-600 text-sm"
-                data-id="65535"
-            >
-                Meta
-            </div>
-            {{#m_loggers}}
-            <div
-                class="chip px-3 py-1 rounded-full border border-zinc-400 dark:border-zinc-600 text-sm"
-                data-id="{{id}}"
-            >
-                {{name}}
-            </div>
-            {{/m_loggers}}
+<head>
+    <meta charset="utf-8" />
+    <title>Logger Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html { --tw-bg-opacity: 1; --tw-text-opacity: 1; --tw-border-opacity: 1; }
+        html.dark { color-scheme: dark; }
+        
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            background-color: rgb(250, 250, 250);
+            color: rgb(39, 39, 42);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.5;
+        }
+        html.dark body {
+            background-color: rgb(24, 24, 27);
+            color: rgb(228, 228, 231);
+        }
+        
+        .terminal {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        header {
+            padding: 1rem;
+            background-color: rgb(229, 229, 229);
+            border-bottom: 1px solid rgb(212, 212, 212);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        html.dark header {
+            background-color: rgb(39, 39, 42);
+            border-bottom-color: rgb(63, 63, 70);
+        }
+        
+        header h1 {
+            font-weight: 600;
+            font-size: 1.125rem;
+        }
+        
+        header .controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        button {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            background-color: rgb(212, 212, 212);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        html.dark button {
+            background-color: rgb(63, 63, 70);
+        }
+        button:hover {
+            background-color: rgb(161, 161, 170);
+        }
+        html.dark button:hover {
+            background-color: rgb(82, 82, 89);
+        }
+        button:active {
+            background-color: rgb(113, 113, 122);
+        }
+        html.dark button:active {
+            background-color: rgb(113, 113, 122);
+        }
+        
+        #status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            background-color: rgb(212, 212, 212);
+        }
+        html.dark #status {
+            background-color: rgb(63, 63, 70);
+        }
+        
+        #loggerChips {
+            padding: 0.75rem;
+            background-color: rgb(244, 244, 245);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgb(212, 212, 212);
+        }
+        html.dark #loggerChips {
+            background-color: rgb(39, 39, 42);
+            border-bottom-color: rgb(63, 63, 70);
+        }
+        
+        .chip {
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            border: 1px solid rgb(161, 161, 170);
+            font-size: 0.875rem;
+        }
+        html.dark .chip {
+            border-color: rgb(82, 82, 89);
+        }
+        .chip.active {
+            background-color: rgb(59, 130, 246);
+            color: white;
+            border-color: rgb(59, 130, 246);
+        }
+        html.dark .chip.active {
+            background-color: rgb(37, 99, 235);
+            border-color: rgb(37, 99, 235);
+        }
+        .chip.partial {
+            border-color: rgb(59, 130, 246);
+        }
+        html.dark .chip.partial {
+            border-color: rgb(37, 99, 235);
+        }
+        
+        #statsBar {
+            padding: 0.5rem;
+            background-color: rgb(244, 244, 245);
+            border-bottom: 1px solid rgb(212, 212, 212);
+            font-size: 0.75rem;
+            color: rgb(113, 113, 122);
+            display: flex;
+            flex-direction: row;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        html.dark #statsBar {
+            background-color: rgb(39, 39, 42);
+            border-bottom-color: rgb(63, 63, 70);
+            color: rgb(161, 161, 170);
+        }
+        
+        .pagination-controls {
+            padding: 0.25rem 0.25rem;
+            border-radius: 0.375rem;
+            background-color: rgb(229, 229, 229);
+            display: flex;
+            flex-direction: row;
+        }
+        html.dark .pagination-controls {
+            background-color: rgb(63, 63, 70);
+        }
+        
+        .pagination-controls button {
+            padding: 0.25rem 0.375rem;
+            margin: 0;
+            background-color: transparent;
+        }
+        .pagination-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        #pageInfo {
+            display: block;
+            padding: 0 0.25rem;
+            min-width: 4rem;
+            text-align: center;
+            font-size: 0.75rem;
+        }
+        
+        #statsItem {
+            padding: 0.25rem 0.375rem;
+            border-radius: 0.375rem;
+            background-color: rgb(229, 229, 229);
+        }
+        html.dark #statsItem {
+            background-color: rgb(63, 63, 70);
+        }
+        
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: rgb(250, 250, 250);
+            font-size: 0.875rem;
+            display: flex;
+            flex-direction: column;
+        }
+        html.dark #messages {
+            background-color: rgb(24, 24, 27);
+        }
+        
+        .log-line {
+            display: block;
+            padding: 0.25rem 0.5rem;
+            cursor: default;
+            transition: background-color 0.15s;
+            margin: 0.125rem;
+            border-radius: 0.125rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <h1>Logger Dashboard</h1>
+        <div class="controls">
+            <button id="themeToggle">Light</button>
+            <button id="clearBtn">Clear Logs</button>
+            <div id="status">Disconnected</div>
         </div>
+    </header>
 
-        <!-- Stats -->
-        <div
-            class="p-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400"
-        >
-            <div class="flex flex-row gap-2 items-center">
-                <div
-                    id="paginationControls"
-                    class="px-1 py-1 rounded bg-zinc-200 dark:bg-zinc-700 flex flex-row"
-                >
-                    <button
-                        id="prevPage"
-                        class="px-1.5 rounded hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
-                    >
-                        &larr;
-                    </button>
-                    <span id="pageInfo" class="block px-1 min-w-16 text-center"
-                        >Page 1 / 1</span
-                    >
-                    <button
-                        id="nextPage"
-                        class="px-1.5 rounded hover:bg-zinc-400 dark:hover:bg-zinc-600 active:bg-zinc-500 dark:active:bg-zinc-500"
-                    >
-                        &rarr;
-                    </button>
-                </div>
+    <!-- Logger chips -->
+    <div id="loggerChips">
+        <div class="chip" data-id="all">All</div>
+        <div class="chip" data-id="65535">Meta</div>
+        {{#m_loggers}}
+        <div class="chip" data-id="{{id}}">{{name}}</div>
+        {{/m_loggers}}
+    </div>
 
-                <div
-                    id="receivedLocal"
-                    class="px-1.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700"
-                >
-                    Received from [All]: 0
-                </div>
-                <div
-                    id="receivedTotal"
-                    class="px-1.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700"
-                >
-                    Received Total: 0
-                </div>
-            </div>
+    <!-- Stats -->
+    <div id="statsBar">
+        <div class="pagination-controls">
+            <button id="prevPage">&larr;</button>
+            <span id="pageInfo">Page 1 / 1</span>
+            <button id="nextPage">&rarr;</button>
         </div>
+        <div id="statsItem">
+            <span id="receivedLocal">Received from [All]: 0</span>
+        </div>
+        <div id="statsItem">
+            <span id="receivedTotal">Received Total: 0</span>
+        </div>
+    </div>
 
-        <!-- Terminal -->
-        <main
-            id="messages"
-            class="flex-1 overflow-y-auto p-4 bg-zinc-50 dark:bg-zinc-900 terminal text-sm flex flex-col"
-        ></main>
+    <!-- Terminal -->
+    <main id="messages" class="terminal"></main>
 
-        <script>
+    <script>
+        (function() {
+            'use strict';
+
             /* ============================================================
                Constants & Global State
             ============================================================ */
@@ -142,13 +261,72 @@
             const messageCache = {};
             const loggerNames = { 65535: "Meta" };
 
-            let mergedCache = [];   // global merged view
-            let messageQueue = [];  // batch insert queue
+            let mergedCache = [];
+            let messageQueue = [];
 
-            /* logger names injected from backend */
+            /* logger names injected from backend via mustache */
             {{#m_loggers}}
             loggerNames[{{id}}] = "{{name}}";
             {{/m_loggers}}
+
+            /* ============================================================
+               Color Generation
+            ============================================================ */
+            const PREDEFINED_COLORS = {
+                'ERROR': {
+                    light: { bg: 'rgb(254, 202, 202)', text: 'rgb(127, 29, 29)', hover: 'rgb(252, 165, 165)' },
+                    dark: { bg: 'rgba(127, 29, 29, 0.4)', text: 'rgb(254, 202, 202)', hover: 'rgba(159, 18, 57, 0.6)' }
+                },
+                'WARN': {
+                    light: { bg: 'rgb(254, 240, 138)', text: 'rgb(113, 63, 18)', hover: 'rgb(253, 224, 71)' },
+                    dark: { bg: 'rgba(120, 53, 15, 0.4)', text: 'rgb(254, 240, 138)', hover: 'rgba(168, 85, 24, 0.6)' }
+                },
+                'INFO': {
+                    light: { bg: 'rgb(187, 247, 208)', text: 'rgb(22, 101, 52)', hover: 'rgb(134, 239, 172)' },
+                    dark: { bg: 'rgba(20, 83, 45, 0.4)', text: 'rgb(187, 247, 208)', hover: 'rgba(34, 121, 64, 0.6)' }
+                },
+                'META': {
+                    light: { bg: 'rgb(232, 212, 251)', text: 'rgb(88, 28, 135)', hover: 'rgb(213, 180, 247)' },
+                    dark: { bg: 'rgba(88, 28, 135, 0.4)', text: 'rgb(232, 212, 251)', hover: 'rgba(126, 34, 206, 0.6)' }
+                }
+            };
+
+            function stringToHash(str) {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
+                }
+                return Math.abs(hash);
+            }
+
+            function getLoggerColor(loggerId, logLevel) {
+                const levelKey = logLevel.toString().replace(/\0/g,'').trim().toUpperCase();
+                const isDark = document.documentElement.classList.contains('dark');
+                const theme = isDark ? 'dark' : 'light';
+
+                // Check for predefined colors first
+                if (levelKey === 'ERROR') return PREDEFINED_COLORS.ERROR[theme];
+                if (levelKey === 'WARN') return PREDEFINED_COLORS.WARN[theme];
+                if (levelKey === 'INFO') return PREDEFINED_COLORS.INFO[theme];
+                if (loggerId === 65535) return PREDEFINED_COLORS.META[theme];
+
+                // Generate color from logger name
+                const loggerName = loggerNames[loggerId] || loggerId.toString();
+                const hash = stringToHash(loggerName);
+                const hue = hash % 360;
+                
+                const saturation = isDark ? 65 : 70;
+                const lightness = isDark ? 15 : 65;
+                const hoverLightness = isDark ? 25 : 55;
+                
+                return {
+                    bg: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
+                    text: isDark ? '#e4e4e7' : '#27272a',
+                    hover: `hsl(${hue}, ${saturation + 5}%, ${hoverLightness}%)`
+                };
+            }
 
             /* ============================================================
                Message Class
@@ -156,7 +334,6 @@
             class Message {
                 constructor(loggerId, lineNumber, funcName, fileName, logLevel,
                             year, month, day, hour, minute, msSinceMinute, messageText) {
-
                     this.loggerId = loggerId;
                     this.lineNumber = lineNumber;
                     this.funcName = funcName;
@@ -166,13 +343,8 @@
                     const seconds = Math.floor(msSinceMinute / 1000);
                     const milliseconds = msSinceMinute % 1000;
                     this.timestamp = new Date(year, month - 1, day, hour, minute, seconds, milliseconds);
-
                     this.messageText = messageText;
-
-                    const colors = this.computeColors();
-                    this.bgClass = colors.bgClass;
-                    this.textClass = colors.textClass;
-                    this.hoverClass = colors.hoverClass;
+                    this.colors = getLoggerColor(loggerId, logLevel);
                 }
 
                 toString() {
@@ -180,71 +352,68 @@
                                `${String(this.timestamp.getHours()).padStart(2,'0')}:${String(this.timestamp.getMinutes()).padStart(2,'0')}:${String(this.timestamp.getSeconds()).padStart(2,'0')}.${String(this.timestamp.getMilliseconds()).padStart(3,'0')}]`;
                     return `${ts} [${this.logLevel}] [${this.fileName}:${this.lineNumber} ${this.funcName}] ${this.messageText}`;
                 }
-
-                computeColors() {
-                    const base = {
-                        // "WS": handles by has function to give purple
-                        "INFO":  {bg:"bg-green-200 dark:bg-green-900/40", text:"text-green-800 dark:text-green-200", hover:"hover:bg-green-300 dark:hover:bg-green-800/60"},
-                        "WARN":  {bg:"bg-yellow-200 dark:bg-yellow-900/40", text:"text-yellow-800 dark:text-yellow-200", hover:"hover:bg-yellow-300 dark:hover:bg-yellow-800/60"},
-                        "ERROR": {bg:"bg-red-200 dark:bg-red-900/40", text:"text-red-800 dark:text-red-200", hover:"hover:bg-red-300 dark:hover:bg-red-800/60"}
-                    };
-
-                    const key = this.logLevel.toString().replace(/\0/g,'').trim().toUpperCase();
-                    if (base[key]) return {bgClass: base[key].bg, textClass: base[key].text, hoverClass: base[key].hover};
-
-                    const hash = Array.from(key).reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0);
-                    const hue = Math.abs(hash) % 360;
-                    return {
-                        bgClass: `bg-[hsl(${hue},40%,90%)] dark:bg-[hsl(${hue},40%,20%)]`,
-                        textClass: `text-[hsl(${hue},60%,30%)] dark:text-[hsl(${hue},60%,80%)]`,
-                        hoverClass: `hover:bg-[hsl(${hue},50%,80%)] dark:hover:bg-[hsl(${hue},50%,30%)]`
-                    };
-                }
             }
 
             /* ============================================================
                DOM References
             ============================================================ */
-            const messages     = document.getElementById("messages");
-            const status       = document.getElementById("status");
-            const receivedLocal= document.getElementById("receivedLocal");
-            const receivedTotal= document.getElementById("receivedTotal");
-            const clearBtn     = document.getElementById("clearBtn");
-            const themeToggle  = document.getElementById("themeToggle");
-            const loggerChips  = document.getElementById("loggerChips");
-            const prevBtn      = document.getElementById("prevPage");
-            const nextBtn      = document.getElementById("nextPage");
-            const pageInfo     = document.getElementById("pageInfo");
+            const messages = document.getElementById("messages");
+            const status = document.getElementById("status");
+            const receivedLocal = document.getElementById("receivedLocal");
+            const receivedTotal = document.getElementById("receivedTotal");
+            const clearBtn = document.getElementById("clearBtn");
+            const themeToggle = document.getElementById("themeToggle");
+            const loggerChips = document.getElementById("loggerChips");
+            const prevBtn = document.getElementById("prevPage");
+            const nextBtn = document.getElementById("nextPage");
+            const pageInfo = document.getElementById("pageInfo");
 
             /* ============================================================
                Theme Handling
             ============================================================ */
             function initTheme() {
-                if (localStorage.theme === "light") {
-                    document.documentElement.classList.remove("dark");
-                    themeToggle.textContent = "Dark";
-                } else {
+                const isDark = !localStorage.theme || localStorage.theme === "dark";
+                if (isDark) {
                     document.documentElement.classList.add("dark");
                     themeToggle.textContent = "Light";
+                } else {
+                    document.documentElement.classList.remove("dark");
+                    themeToggle.textContent = "Dark";
                 }
             }
-            themeToggle.onclick = () => {
+
+            themeToggle.addEventListener("click", () => {
                 document.documentElement.classList.toggle("dark");
                 if (document.documentElement.classList.contains("dark")) {
-                    localStorage.theme = "dark"; themeToggle.textContent = "Light";
+                    localStorage.theme = "dark";
+                    themeToggle.textContent = "Light";
                 } else {
-                    localStorage.theme = "light"; themeToggle.textContent = "Dark";
+                    localStorage.theme = "light";
+                    themeToggle.textContent = "Dark";
                 }
-            };
+                // Update colors for all cached messages
+                for (const id in messageCache) {
+                    messageCache[id].forEach(msg => {
+                        msg.colors = getLoggerColor(msg.loggerId, msg.logLevel);
+                    });
+                }
+                mergedCache.forEach(msg => {
+                    msg.colors = getLoggerColor(msg.loggerId, msg.logLevel);
+                });
+                renderSelectedMessages();
+            });
 
             /* ============================================================
                Cache Helpers
             ============================================================ */
             function rebuildMergedCache() {
                 mergedCache = [];
-                selectedLoggers.forEach(id => { if (messageCache[id]) mergedCache.push(...messageCache[id]); });
+                selectedLoggers.forEach(id => {
+                    if (messageCache[id]) mergedCache.push(...messageCache[id]);
+                });
                 mergedCache.sort((a, b) => b.timestamp - a.timestamp);
             }
+
             function insertIntoMerged(msgObj) {
                 if (!selectedLoggers.has(msgObj.loggerId)) return;
                 let lo = 0, hi = mergedCache.length;
@@ -262,25 +431,34 @@
             function updatePaginationInfo(totalCount) {
                 totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
                 currentPage = Math.max(0, Math.min(currentPage, totalPages - 1));
-
                 pageInfo.textContent = `Page ${currentPage + 1} / ${totalPages}`;
                 prevBtn.disabled = currentPage === 0;
                 nextBtn.disabled = currentPage === totalPages - 1;
             }
+
             function renderPageFromMerged() {
                 messages.innerHTML = "";
                 const start = currentPage * PAGE_SIZE;
                 const slice = mergedCache.slice(start, start + PAGE_SIZE);
-
                 const frag = document.createDocumentFragment();
+
                 slice.forEach(msgObj => {
                     const el = document.createElement("div");
-                    el.className = `block px-2 py-1 cursor-default transition mx-0.5 ${msgObj.bgClass} ${msgObj.textClass} ${msgObj.hoverClass}`;
+                    el.className = "log-line";
                     el.textContent = msgObj.toString();
+                    el.style.backgroundColor = msgObj.colors.bg;
+                    el.style.color = msgObj.colors.text;
+                    el.addEventListener('mouseenter', () => {
+                        el.style.backgroundColor = msgObj.colors.hover;
+                    });
+                    el.addEventListener('mouseleave', () => {
+                        el.style.backgroundColor = msgObj.colors.bg;
+                    });
                     frag.appendChild(el);
                 });
                 messages.appendChild(frag);
             }
+
             function renderSelectedMessages() {
                 updatePaginationInfo(mergedCache.length);
                 renderPageFromMerged();
@@ -292,24 +470,21 @@
             function addMessage(msgObj) {
                 const id = msgObj.loggerId;
                 if (!messageCache[id]) messageCache[id] = [];
-
                 messageCache[id].unshift(msgObj);
                 if (messageCache[id].length > 10000) messageCache[id].pop();
-
                 insertIntoMerged(msgObj);
             }
+
             function addWSConnMessage(text) {
                 const now = new Date();
                 const msgObj = new Message(
-                    65535, 0, "sys", "sys", "WS",
+                    65535, 0, "sys", "sys", "META",
                     now.getFullYear(), now.getMonth() + 1, now.getDate(),
                     now.getHours(), now.getMinutes(),
-                    now.getSeconds() * 1000 + now.getMilliseconds(), // proper msSinceMinute
+                    now.getSeconds() * 1000 + now.getMilliseconds(),
                     text
                 );
                 addMessage(msgObj);
-
-                // Ensure UI updates
                 updateStats();
                 if (currentPage === 0) {
                     renderSelectedMessages();
@@ -327,9 +502,13 @@
                 const selectedCount = loggerChipsArray.filter(c => selectedLoggers.has(Number(c.dataset.id))).length;
 
                 for (const id of selectedLoggers) localCount += (messageCache[id]?.length || 0);
-                receivedLocal.textContent = selectedCount === loggerChipsArray.length
-                    ? `Received from [All]: ${localCount}`
-                    : `Received from [${Array.from(selectedLoggers).map(id => loggerNames[id] || id).join(", ")}] : ${localCount}`;
+                
+                if (selectedCount === loggerChipsArray.length) {
+                    receivedLocal.textContent = `Received from [All]: ${localCount}`;
+                } else {
+                    const names = Array.from(selectedLoggers).map(id => loggerNames[id] || id).join(", ");
+                    receivedLocal.textContent = `Received from [${names}]: ${localCount}`;
+                }
 
                 for (const key in messageCache) total += messageCache[key].length;
                 receivedTotal.textContent = `Received Total: ${total}`;
@@ -344,16 +523,19 @@
                 const totalCount = loggerChipsArray.length;
                 const selectedCount = loggerChipsArray.filter(c => selectedLoggers.has(Number(c.dataset.id))).length;
 
-                allChip.className = "chip px-3 py-1 rounded-full border text-sm border-zinc-400 dark:border-zinc-600";
-                if (selectedCount === totalCount) allChip.classList.add("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
-                else if (selectedCount > 0) allChip.classList.add("border-blue-500","dark:border-blue-600");
+                allChip.classList.remove("active", "partial");
+                if (selectedCount === totalCount) {
+                    allChip.classList.add("active");
+                } else if (selectedCount > 0) {
+                    allChip.classList.add("partial");
+                }
 
                 loggerChipsArray.forEach(c => {
                     const cid = Number(c.dataset.id);
-                    c.classList.remove("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
-                    if (selectedLoggers.has(cid)) c.classList.add("bg-blue-500","text-white","dark:bg-blue-600","dark:text-white");
+                    c.classList.toggle("active", selectedLoggers.has(cid));
                 });
             }
+
             loggerChips.addEventListener("click", e => {
                 const chip = e.target.closest(".chip");
                 if (!chip) return;
@@ -364,10 +546,18 @@
                         .filter(c => c.dataset.id !== "all")
                         .every(c => selectedLoggers.has(Number(c.dataset.id)));
                     selectedLoggers.clear();
-                    if (!allSelected) loggerChips.querySelectorAll(".chip").forEach(c => { if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id)); });
+                    if (!allSelected) {
+                        loggerChips.querySelectorAll(".chip").forEach(c => {
+                            if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id));
+                        });
+                    }
                 } else {
                     const numId = Number(id);
-                    selectedLoggers.has(numId) ? selectedLoggers.delete(numId) : selectedLoggers.add(numId);
+                    if (selectedLoggers.has(numId)) {
+                        selectedLoggers.delete(numId);
+                    } else {
+                        selectedLoggers.add(numId);
+                    }
                 }
 
                 updateChips();
@@ -380,36 +570,60 @@
             /* ============================================================
                Pagination Controls
             ============================================================ */
-            prevBtn.addEventListener("click", () => { if (currentPage > 0) { currentPage--; renderSelectedMessages(); } });
-            nextBtn.addEventListener("click", () => { if (currentPage < totalPages - 1) { currentPage++; renderSelectedMessages(); } });
+            prevBtn.addEventListener("click", () => {
+                if (currentPage > 0) {
+                    currentPage--;
+                    renderSelectedMessages();
+                }
+            });
+
+            nextBtn.addEventListener("click", () => {
+                if (currentPage < totalPages - 1) {
+                    currentPage++;
+                    renderSelectedMessages();
+                }
+            });
 
             /* ============================================================
                Clear
             ============================================================ */
-            clearBtn.onclick = () => {
-                // Clear all logs from cache
+            clearBtn.addEventListener("click", () => {
                 for (const key in messageCache) {
                     messageCache[key] = [];
                 }
-                messageQueue.length = 0;   // drop pending messages
+                messageQueue.length = 0;
                 mergedCache = [];
                 currentPage = 0;
                 updateStats();
                 renderSelectedMessages();
-            };
+            });
 
             /* ============================================================
-               WebSocket Handling (batched)
+               WebSocket Handling
             ============================================================ */
             function connectWebSocket(url) {
-                if (ws && ws.readyState === WebSocket.OPEN) { ws.close(); return; }
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.close();
+                    return;
+                }
                 ws = new WebSocket(url);
                 ws.binaryType = "arraybuffer";
 
-                ws.onopen   = () => { addWSConnMessage("Connected"); status.textContent = "Connected at {{port}}"; };
-                ws.onclose  = () => { addWSConnMessage("Closed"); status.textContent = "Disconnected"; };
-                ws.onerror  = () => addWSConnMessage("Error");
-                ws.onmessage = e => {
+                ws.addEventListener("open", () => {
+                    addWSConnMessage("Connected");
+                    status.textContent = `Connected at {{port}}`;
+                });
+
+                ws.addEventListener("close", () => {
+                    addWSConnMessage("Closed");
+                    status.textContent = "Disconnected";
+                });
+
+                ws.addEventListener("error", () => {
+                    addWSConnMessage("Error");
+                });
+
+                ws.addEventListener("message", e => {
                     if (!(e.data instanceof ArrayBuffer)) return;
                     const bytes = new Uint8Array(e.data);
                     if (bytes.length < 23) return;
@@ -438,7 +652,7 @@
                     const msgObj = new Message(loggerId, lineNumber, funcName, fileName, logLevel,
                                                year, month, day, hour, minute, milliseconds, messageText);
                     messageQueue.push(msgObj);
-                };
+                });
             }
 
             /* ============================================================
@@ -451,33 +665,36 @@
                 const loggerArray = chips.filter(c => c !== allChip && c !== metaChip).sort((a, b) => Number(a.dataset.id) - Number(b.dataset.id));
 
                 loggerChips.innerHTML = "";
-                if (allChip) loggerChips.appendChild(allChip);
-                loggerArray.forEach(c => loggerChips.appendChild(c));
-                if (metaChip) loggerChips.appendChild(metaChip);
+                const frag = document.createDocumentFragment();
+                if (allChip) frag.appendChild(allChip);
+                loggerArray.forEach(c => frag.appendChild(c));
+                if (metaChip) frag.appendChild(metaChip);
+                loggerChips.appendChild(frag);
             }
 
             connectWebSocket(`ws://localhost:{{port}}/ws`);
 
             initTheme();
             sortChips();
-            loggerChips.querySelectorAll(".chip").forEach(c => { if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id)); });
+            loggerChips.querySelectorAll(".chip").forEach(c => {
+                if (c.dataset.id !== "all") selectedLoggers.add(Number(c.dataset.id));
+            });
             updateChips();
             rebuildMergedCache();
             updateStats();
             renderSelectedMessages();
 
-            /* Batch flush every given ms from cpp */
+            /* Batch flush every given ms */
             setInterval(() => {
                 if (messageQueue.length === 0) return;
-                // take all messages out of messageQueue in one go and store them in "queue"
                 const queue = messageQueue.splice(0, messageQueue.length);
                 queue.forEach(addMessage);
                 updateStats();
-                // auto-refresh with new messages
                 if (currentPage === 0) renderSelectedMessages();
-                // keep the user’s current scroll/page, only update total pages info
                 else updatePaginationInfo(mergedCache.length);
             }, {{refreshInterval}});
-        </script>
-    </body>
+
+        })();
+    </script>
+</body>
 </html>

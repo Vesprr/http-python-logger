@@ -50,7 +50,7 @@ private:
     /// @brief Runs of a seperate thread; sends the messages stored in the queue to the websockets recievers
     void m_tSendLogs();
 
-    // log queue; when m_Log is called all messages are first queued first and sent using a seperate thread: `m_logSenderThread`
+    // log queue; when f_Log is called all messages are first queued first and sent using a seperate thread: `m_logSenderThread`
     std::queue<std::string> m_logQueue;
     std::mutex m_logQueueMutex; // see `m_ws_mutex`; rest self-explanatory
 
@@ -64,11 +64,11 @@ private:
 
     /// @brief Adds the message to the queue; Uses `m_logSenderNotifier` to notify `m_logSenderThread`
     /// @param message The formatted message in binary; std::string is used as CROW takes that as argument for `conn->send_binary(std::string)`;
-    void m_Log(const std::string &message);
+    void f_Log(const std::string &message);
     /// @brief Register the logger with given id and title
     /// @param id the id of logger uint16_t
     /// @param title the title of logger as std::string
-    void m_RegisterLogger(uint16_t id, const std::string &title);
+    void f_RegisterLogger(uint16_t id, const std::string &title);
 
 public:
     /// @brief Default contructor has been deleted: Use `Server(uint16_t port, uint16_t refreshIntervalMs = 50)` instead

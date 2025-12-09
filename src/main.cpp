@@ -12,16 +12,15 @@ int main()
 
     Logger loggerA(server, 1, "LoggerA");
     Logger loggerB(server, 2, "LoggerB");
-    Logger loggerC(server, 3, "LoggerC");
-    Logger loggerD(server, 4, "LoggerD");
-    Logger loggerE(server, 5, "LoggerE");
+    Logger loggerC(server, 3, "red");
+    Logger loggerD(server, 4, "blue");
+    Logger loggerE(server, 5, "black");
 
     server.Start();
 
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
     auto start = std::chrono::high_resolution_clock::now();
-
 
     // sends 10k logs total
     // takes at least 11ms to send 10 logs
@@ -34,7 +33,7 @@ int main()
         LOG_CUSTOM(loggerD, "(BA) Message from Logger D " + std::to_string(i), "CUSTOMA");
         LOG_CUSTOM(loggerE, "(BA) Message from Logger E " + std::to_string(i), "CUSTOMB");
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::microseconds(1));
         // added to check accuracy
 
         LOG_INFO(loggerA, "(BB) Message from Logger A " + std::to_string(i));
@@ -42,11 +41,10 @@ int main()
         LOG_ERROR(loggerC, "(BB) Message from Logger C " + std::to_string(i));
         LOG_CUSTOM(loggerD, "(BB) Message from Logger D " + std::to_string(i), "CUSTOM1");
         LOG_CUSTOM(loggerE, "(BB) Message from Logger E " + std::to_string(i), "CUSTOM2");
-        
 
         std::cout << "Logs sent; i = " << i << "\n";
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     auto end = std::chrono::high_resolution_clock::now();

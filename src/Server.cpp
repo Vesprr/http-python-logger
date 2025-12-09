@@ -149,7 +149,7 @@ void Server::Stop()
         m_logSenderThread.join();
 }
 
-void Server::m_RegisterLogger(uint16_t id, const std::string &title)
+void Server::f_RegisterLogger(uint16_t id, const std::string &title)
 {
     // store logger title
     m_loggers[id] = title;
@@ -158,7 +158,7 @@ void Server::m_RegisterLogger(uint16_t id, const std::string &title)
     std::cout << "Registered Logger: [" << std::to_string(id) << "] = " << title << "\n";
 }
 
-void Server::m_Log(const std::string &message)
+void Server::f_Log(const std::string &message)
 {
     std::lock_guard<std::mutex> lock(m_logQueueMutex);
 
