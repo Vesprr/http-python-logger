@@ -8,8 +8,8 @@ PURPLE='\033[0;35m'
 RESET='\033[0m'
 readonly GREEN RED YELLOW CYAN PURPLE RESET
 
-FILES_DIR="src/embedded/files"
-OUT_DIR="src/embedded/incs"
+FILES_DIR="embedded/files"
+OUT_DIR="embedded/incs"
 EXCLUDE_SUFFIXES=("~" ".bak" ".tmp" ".md")
 
 should_exclude() {

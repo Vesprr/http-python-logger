@@ -4,6 +4,7 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/src/**",
+                "${workspaceFolder}/embedded/incs/**",
                 "${workspaceFolder}/external/vcpkg/installed/arm64-osx/include"
             ],
             "defines": [],
