@@ -27,6 +27,9 @@ cmake --preset default-configure \
 echo -e "${YELLOW}Building static library...${RESET}"
 cmake --build --preset default-build --config $build_type
 
+echo -e "${YELLOW}Installing static library to dist/ ...${RESET}"
+cmake --install build --config $build_type --prefix "$(pwd)/dist"
+
 echo -e "${GREEN}Build complete.${RESET}"
 
 # get cmake project name
